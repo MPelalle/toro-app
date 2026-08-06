@@ -37,6 +37,14 @@ Whether you're in a basement gym, a warehouse, or a place with no signal, TORO k
 
 **No interruptions. No lost progress. Just training.**
 
+## Deploy on Vercel
+
+The deployable Next.js project lives in the `toro/` directory. In Vercel, import the repository and set **Root Directory** to `toro`.
+
+Add every variable from `.env.example` in **Settings > Environment Variables** for the environments you deploy. `DATABASE_URL` is used by the application at runtime, while `DIRECT_URL` is required for Prisma migrations. Set `APP_URL` to the final HTTPS deployment URL, without a trailing slash, so verification emails point to the correct domain.
+
+Vercel runs `npm run db:deploy && npm run build` from `vercel.json`. Configure preview deployments with their own database, or restrict deployment to production until a separate preview database is available, because migrations are applied during each deployment.
+
 ---
 
 **TORO — Become Your Best Version.**

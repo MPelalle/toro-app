@@ -2,6 +2,9 @@
   "name": "toro",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "predev": "prisma generate",
     "dev": "next dev",
