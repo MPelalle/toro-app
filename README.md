@@ -1,47 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🐂 TORO — Become Your Best Version
 
-## Base de datos: Supabase + Prisma
+TORO is a modern **offline-first fitness platform** built to help athletes train smarter, stay consistent, and track every workout without relying on an internet connection.
 
-1. Copiá `.env.example` a `.env` y pegá las dos URLs de **Supabase Dashboard → Connect → ORMs → Prisma**.
-2. Instalá dependencias con `npm install`.
-3. Aplicá la migración inicial: `npm run db:deploy` (o `npm run db:migrate` durante desarrollo).
-4. Generá el cliente con `npm run db:generate`. Luego podés usar `npm run db:studio` para inspeccionar los datos.
+Designed for lifters who care about progressive overload, performance, and long-term consistency, TORO lets you focus on your training while automatically handling data synchronization in the background.
 
-`DATABASE_URL` está destinada a la app en tiempo de ejecución (pooler) y `DIRECT_URL` a migraciones y Studio. El esquema incluye usuarios, hábitos y check-ins diarios; el resultado semanal se calcula desde estos últimos para no guardar métricas obsoletas.
+## ✨ Features
 
-Mientras no haya autenticación con Supabase Auth, la sección de hábitos usa `HABITS_USER_ID` como propietario de los registros. Está documentado en `.env.example`; al agregar login, reemplazalo por el UUID de la sesión autenticada.
+* 🏋️ Create fully customizable workout programs
+* 📈 Track weights, reps, sets and progression
+* 📊 Compare performance with previous sessions
+* ⚡ Instant workout logging with an offline-first architecture
+* 🔄 Automatic synchronization when connection is restored
+* 📅 Workout history and long-term progress tracking
+* ✅ Habit tracking to build consistency
+* 🥗 Nutrition module (in development)
+* 📱 Installable Progressive Web App (PWA)
+* ☁️ Powered by Supabase for secure cloud synchronization
 
-## Getting Started
+## 🛠 Tech Stack
 
-First, run the development server:
+* Next.js
+* React
+* TypeScript
+* Tailwind CSS
+* Supabase
+* PostgreSQL
+* Prisma
+* IndexedDB
+* Progressive Web App (PWA)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🎯 Philosophy
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Training shouldn't stop because your internet does.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Whether you're in a basement gym, a warehouse, or a place with no signal, TORO keeps working. Every workout is stored locally and synchronized automatically once you're back online.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**No interruptions. No lost progress. Just training.**
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**TORO — Become Your Best Version.**
