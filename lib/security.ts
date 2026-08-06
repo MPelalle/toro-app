@@ -30,14 +30,23 @@ export function rateLimitResponse(retryAfter: number) {
   );
 }
 
+function publicRequestOrigin(request: Request) {
+  const requestUrl = new URL(request.url);
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  if (!host) return requestUrl.origin;
+
+  const protocol = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || requestUrl.protocol.slice(0, -1);
+  return new URL(`${protocol}://${host}`).origin;
+}
+
 /** Reject cross-site writes before cookies can be used to mutate account data. */
 export function hasTrustedOrigin(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin) return false;
 
   try {
-    const expected = new URL(process.env.APP_URL || request.url).origin;
-    return new URL(origin).origin === expected;
+    // APP_URL is the canonical URL for email links, not an origin allowlist.
+    return new URL(origin).origin === publicRequestOrigin(request);
   } catch {
     return false;
   }
