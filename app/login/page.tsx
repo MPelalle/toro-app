@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { ArrowRight, LockKeyhole, Mail } from "lucide-react";
 
 export default function LoginPage() {
@@ -10,7 +10,6 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
@@ -20,10 +19,10 @@ function LoginForm() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(""); setPending(true);
     try {
-      const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, pin }) });
+      const response = await fetch("/api/auth/login", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, pin }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "No pudimos iniciar sesión.");
-      router.replace(data.redirectTo); router.refresh();
+      window.location.assign(data.redirectTo);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "No pudimos iniciar sesión.");
     } finally { setPending(false); }

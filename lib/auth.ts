@@ -32,9 +32,10 @@ export function verifyPin(pin: string, storedHash: string) {
 export async function createSession(userId: string) {
   const token = createToken();
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE * 1000);
-  await getPrisma().$transaction([
-    getPrisma().session.deleteMany({ where: { userId } }),
-    getPrisma().session.create({ data: { userId, tokenHash: hashToken(token), expiresAt } }),
+  const prisma = getPrisma();
+  await prisma.$transaction([
+    prisma.session.deleteMany({ where: { userId } }),
+    prisma.session.create({ data: { userId, tokenHash: hashToken(token), expiresAt } }),
   ]);
   return { token, expiresAt };
 }
@@ -47,6 +48,7 @@ export const sessionCookie = (token: string, expiresAt: Date) => ({
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict" as const,
     path: "/",
+    maxAge: SESSION_MAX_AGE,
     expires: expiresAt,
   },
 });
