@@ -1,0 +1,310 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum HabitStatus {
+  ACTIVE
+  PAUSED
+  INACTIVE
+}
+
+enum HabitImportance {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum HabitDurationUnit {
+  DAYS
+  MONTHS
+}
+
+enum WorkoutSessionStatus {
+  IN_PROGRESS
+  FINISHED
+}
+
+/// Perfil de la aplicación. Su `id` debe coincidir con el UUID de auth.users
+/// cuando se conecte Supabase Auth.
+model User {
+  id        String   @id @db.Uuid
+  email     String?  @unique
+  name      String?
+  username  String?  @unique
+  pinHash   String?  @map("pin_hash")
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  avatarUrl String? @map("avatar_url")
+  loginCount Int @default(0) @map("login_count")
+  appSeconds Int @default(0) @map("app_seconds")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  habits Habit[]
+  diets DietPlan[]
+  routines RoutinePlan[]
+  workoutSessions WorkoutSession[]
+  authTokens AuthToken[]
+  sessions Session[]
+
+  @@map("users")
+}
+
+model DietPlan {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  name        String
+  sex         String
+  age         Int
+  weight      Float
+  height      Float
+  activity    Float
+  activityLabel String @map("activity_label")
+  goal        String
+  mealsPerDay Int      @map("meals_per_day")
+  calories    Int
+  tdee        Int
+  protein     Int
+  carbs       Int
+  fats        Int
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meals         DietMeal[]
+  weightEntries DietWeightEntry[]
+  dailyLogs     DietDailyLog[]
+
+  @@index([userId, active])
+  @@index([userId, createdAt])
+  @@map("diet_plans")
+}
+
+model DietMeal {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dietId    String   @map("diet_id") @db.Uuid
+  position  Int
+  name      String
+  time      String
+  kcal      Int
+  protein   Int
+  carbs     Int
+  fats      Int
+  foods     Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  diet DietPlan @relation(fields: [dietId], references: [id], onDelete: Cascade)
+
+  @@unique([dietId, position])
+  @@map("diet_meals")
+}
+
+model DietWeightEntry {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dietId    String   @map("diet_id") @db.Uuid
+  date      DateTime @db.Date
+  weight    Float
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  diet DietPlan @relation(fields: [dietId], references: [id], onDelete: Cascade)
+
+  @@index([dietId, date])
+  @@map("diet_weight_entries")
+}
+
+model DietDailyLog {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dietId           String   @map("diet_id") @db.Uuid
+  date             DateTime @db.Date
+  completedMealIds Json     @map("completed_meal_ids")
+  comment          String?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  diet DietPlan @relation(fields: [dietId], references: [id], onDelete: Cascade)
+
+  @@unique([dietId, date])
+  @@map("diet_daily_logs")
+}
+
+model AuthToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tokenHash String   @unique @map("token_hash")
+  type      String
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@map("auth_tokens")
+}
+
+model Session {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Habit {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String            @map("user_id") @db.Uuid
+  name          String
+  icon          String            @default("CircleCheck")
+  importance    HabitImportance   @default(MEDIUM)
+  durationValue Int               @default(30) @map("duration_value")
+  durationUnit  HabitDurationUnit @default(DAYS) @map("duration_unit")
+  status        HabitStatus       @default(ACTIVE)
+  notes         String?
+  startsAt      DateTime          @default(now()) @map("starts_at")
+  endsAt        DateTime?         @map("ends_at")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkIns HabitCheckIn[]
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@map("habits")
+}
+
+/// Un registro por hábito y día. Las métricas semanales se calculan a partir
+/// de estos check-ins, por lo que no se almacenan porcentajes desactualizados.
+model HabitCheckIn {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  habitId     String   @map("habit_id") @db.Uuid
+  completedAt DateTime @map("completed_at") @db.Date
+  completed   Boolean  @default(true)
+  comment     String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  habit Habit @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@unique([habitId, completedAt])
+  @@index([completedAt])
+  @@map("habit_check_ins")
+}
+
+model RoutinePlan {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String
+  type      String
+  days      Json
+  active    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises RoutineExercise[]
+  workoutSessions WorkoutSession[]
+
+  @@index([userId, active])
+  @@index([userId, createdAt])
+  @@map("routine_plans")
+}
+
+model RoutineExercise {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  routineId   String   @map("routine_id") @db.Uuid
+  position    Int
+  name        String
+  muscle      String
+  sets        Int
+  reps        Int
+  weight      Float
+  technique   String
+  trainingDay String   @map("training_day")
+  completed   Boolean? @default(false)
+  actualReps  Int?     @map("actual_reps")
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  routine RoutinePlan @relation(fields: [routineId], references: [id], onDelete: Cascade)
+
+  @@unique([routineId, position])
+  @@index([routineId])
+  @@map("routine_exercises")
+}
+
+model WorkoutSession {
+  /// UUID generado en el cliente. Permite reintentos seguros después de una pérdida de red.
+  id              String               @id @db.Uuid
+  userId          String               @map("user_id") @db.Uuid
+  routineId       String               @map("routine_id") @db.Uuid
+  status          WorkoutSessionStatus @default(IN_PROGRESS)
+  startedAt       DateTime             @map("started_at")
+  finishedAt      DateTime?            @map("finished_at")
+  durationSeconds Int?                 @map("duration_seconds")
+  notes           String?
+  emotionalRating Int?                 @map("emotional_rating")
+  version         Int                  @default(1)
+  clientUpdatedAt DateTime             @map("client_updated_at")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routine   RoutinePlan            @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  exercises WorkoutSessionExercise[]
+
+  @@index([userId, routineId, status])
+  @@index([userId, clientUpdatedAt])
+  @@map("workout_sessions")
+}
+
+model WorkoutSessionExercise {
+  /// UUID generado en el cliente junto con la sesión.
+  id                String @id @db.Uuid
+  sessionId         String @map("session_id") @db.Uuid
+  routineExerciseId String @map("routine_exercise_id") @db.Uuid
+  position          Int
+  name              String
+  muscle            String
+
+  session WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sets    WorkoutSet[]
+
+  @@unique([sessionId, position])
+  @@index([sessionId])
+  @@map("workout_session_exercises")
+}
+
+model WorkoutSet {
+  /// UUID generado en el cliente. Reenviar una sesión no duplica sus series.
+  id                String   @id @db.Uuid
+  sessionExerciseId String   @map("session_exercise_id") @db.Uuid
+  setNumber         Int      @map("set_number")
+  targetReps        Int      @map("target_reps")
+  targetWeight      Float    @map("target_weight")
+  reps              Int?
+  weight            Float?
+  rir               Int?
+  rpe               Int?
+  note              String?
+  completed         Boolean  @default(false)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  exercise WorkoutSessionExercise @relation(fields: [sessionExerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionExerciseId, setNumber])
+  @@index([sessionExerciseId])
+  @@map("workout_sets")
+}

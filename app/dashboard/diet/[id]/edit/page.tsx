@@ -1,0 +1,16 @@
+"use client";
+
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { ArrowLeft, Save, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { dietRequest, Diet, DietGoal, goalLabels } from "@/lib/diet";
+
+export default function EditDietPage() {
+  const { id } = useParams<{ id: string }>(); const router = useRouter(); const [diet, setDiet] = useState<Diet | null>(null);
+  useEffect(() => { dietRequest<Diet>(`/api/diets/${id}`).then(setDiet).catch(() => router.replace("/dashboard/diet")); }, [id, router]);
+  const save = async () => { if (!diet) return; await dietRequest(`/api/diets/${id}`, { method: "PUT", body: JSON.stringify({ name: diet.name, goal: diet.goal, active: diet.active }) }); router.push(`/dashboard/diet/${id}`); };
+  const remove = async () => { if (!diet || !window.confirm("¿Eliminar esta dieta y todo su seguimiento?")) return; await dietRequest(`/api/diets/${id}`, { method: "DELETE" }); router.push("/dashboard/diet"); };
+  if (!diet) return null;
+  return <main className="min-h-dvh bg-[#090a08] px-4 pb-36 pt-28 text-white sm:px-8"><div className="mx-auto max-w-2xl"><Link href={`/dashboard/diet/${id}`} className="inline-flex items-center gap-2 text-xs text-white/45 hover:text-white"><ArrowLeft size={15}/> Volver a la dieta</Link><header className="mt-8"><p className="text-[10px] font-bold tracking-[.22em] text-[#b7ff00]/70">EDICIÓN</p><h1 className="mt-2 text-3xl font-semibold tracking-[-.05em]">Ajustá tu plan.</h1></header><section className="mt-7 rounded-[28px] border border-white/[.08] bg-[#10110e] p-5 sm:p-7"><label className="block"><span className="mb-2 block text-xs text-white/55">Nombre del plan</span><input className="input" value={diet.name} onChange={(event) => setDiet({ ...diet, name: event.target.value })}/></label><label className="mt-5 block"><span className="mb-2 block text-xs text-white/55">Objetivo</span><select className="input" value={diet.goal} onChange={(event) => setDiet({ ...diet, goal: event.target.value as DietGoal })}>{(Object.keys(goalLabels) as DietGoal[]).map((goal) => <option key={goal} value={goal}>{goalLabels[goal]}</option>)}</select></label><label className="mt-5 block"><span className="mb-2 block text-xs text-white/55">Estado</span><select className="input" value={diet.active ? "active" : "paused"} onChange={(event) => setDiet({ ...diet, active: event.target.value === "active" })}><option value="active">Plan activo</option><option value="paused">Plan pausado</option></select></label><div className="mt-7 rounded-2xl border border-white/[.06] bg-black/15 p-4 text-xs leading-5 text-white/40">Para recalcular calorías o macros según nuevos datos, creá un plan nuevo. Así se preserva el historial de esta dieta.</div><div className="mt-8 flex items-center justify-between border-t border-white/[.07] pt-5"><button onClick={remove} className="flex items-center gap-2 rounded-xl px-3 py-3 text-sm text-red-300/75 hover:bg-red-400/10"><Trash2 size={16}/> Eliminar</button><button onClick={save} className="flex items-center gap-2 rounded-xl bg-[#b7ff00] px-5 py-3 text-sm font-bold text-black"><Save size={16}/> Guardar cambios</button></div></section></div></main>;
+}

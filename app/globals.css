@@ -1,0 +1,266 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-montserrat);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+html {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+main,
+section,
+article {
+  min-width: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-montserrat), Arial, Helvetica, sans-serif;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 0.7rem 0.8rem;
+  color: white;
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.input::placeholder {
+  color: rgba(255, 255, 255, 0.24);
+}
+
+.input:focus {
+  border-color: rgba(183, 255, 0, 0.55);
+}
+
+/* Shared dashboard atmosphere for the compact routine and habit views. */
+main[class*="bg-[#090a08]"],
+main[class*="bg-[#080908]"] {
+  background-color: #090a08 !important;
+  background-image:
+    radial-gradient(ellipse at 88% 8%, rgba(183, 255, 0, 0.07), transparent 34%),
+    radial-gradient(ellipse at 8% 68%, rgba(56, 189, 248, 0.055), transparent 30%),
+    radial-gradient(ellipse at 78% 78%, rgba(217, 70, 239, 0.045), transparent 27%);
+}
+
+/* The routine and habits dashboards own their background layers. Keep them
+   above the opaque page color and add the same three-color atmosphere as Diet. */
+main[class*="bg-[#070807]"]::before,
+div[class*="bg-[#070807]"]::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    radial-gradient(circle at 87% 20%, rgba(56, 189, 248, 0.1), transparent 28%),
+    radial-gradient(circle at 8% 78%, rgba(217, 70, 239, 0.08), transparent 30%),
+    radial-gradient(circle at 52% -8%, rgba(183, 255, 0, 0.09), transparent 38%);
+}
+
+main[class*="bg-[#070807]"] > .fixed.-z-10,
+div[class*="bg-[#070807]"] > .fixed.-z-10 {
+  z-index: 0 !important;
+}
+
+.input option {
+  background: #171815;
+  color: white;
+}
+
+
+@keyframes toro-breathe {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.7;
+  }
+
+  50% {
+    transform: translate3d(80px, 45px, 0) scale(1.18);
+    opacity: 1;
+  }
+}
+
+@keyframes toro-breathe-reverse {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.45;
+  }
+
+  50% {
+    transform: translate3d(-70px, -40px, 0) scale(1.16);
+    opacity: 0.8;
+  }
+}
+
+@keyframes toro-pulse {
+  0%,
+  100% {
+    transform: translateX(-50%) scale(1);
+    opacity: 0.5;
+  }
+
+  50% {
+    transform: translateX(-50%) scale(1.12);
+    opacity: 1;
+  }
+}
+
+.toro-breathe {
+  animation: toro-breathe 14s ease-in-out infinite;
+}
+
+.toro-breathe-reverse {
+  animation: toro-breathe-reverse 18s ease-in-out infinite;
+}
+
+.toro-pulse {
+  animation: toro-pulse 10s ease-in-out infinite;
+}
+
+
+.input {
+  width: 100%;
+  height: 42px;
+  border-radius: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  background: rgba(255, 255, 255, 0.025);
+  padding: 0 13px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  outline: none;
+  transition: all 200ms ease;
+}
+
+.input::placeholder {
+  color: rgba(255, 255, 255, 0.18);
+}
+
+.input:hover {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.input:focus {
+  border-color: rgba(183, 255, 0, 0.28);
+  background: rgba(183, 255, 0, 0.025);
+  box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.035);
+}
+
+:focus-visible {
+  outline: 2px solid #b7ff00;
+  outline-offset: 3px;
+}
+
+.toro-auth-page {
+  position: relative;
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  overflow: hidden;
+  padding: max(1.25rem, env(safe-area-inset-top)) 1rem max(1.25rem, env(safe-area-inset-bottom));
+  background: #090a08;
+  color: white;
+}
+
+.toro-auth-page::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% -10%, rgba(183, 255, 0, .1), transparent 48%), radial-gradient(ellipse at 0% 100%, rgba(56, 189, 248, .07), transparent 35%);
+}
+
+.toro-auth-glow { position: absolute; width: 20rem; height: 20rem; border-radius: 9999px; filter: blur(80px); pointer-events: none; opacity: .55; }
+.toro-auth-glow--lime { top: -10rem; right: -7rem; background: rgba(183, 255, 0, .16); }
+.toro-auth-glow--sky { bottom: -11rem; left: -8rem; background: rgba(56, 189, 248, .13); }
+.toro-auth-glow--violet { bottom: -10rem; left: -7rem; background: rgba(217, 70, 239, .12); }
+
+.toro-auth-card { position: relative; z-index: 1; width: min(100%, 28rem); border: 1px solid rgba(255,255,255,.08); border-radius: 1.75rem; padding: 1.5rem; background: rgba(16,17,14,.92); box-shadow: 0 24px 80px rgba(0,0,0,.3); backdrop-filter: blur(24px); }
+.toro-auth-brand { display: inline-block; color: #b7ff00; font-size: .82rem; font-weight: 800; letter-spacing: .28em; }
+.toro-eyebrow { margin-top: 2.25rem; color: rgba(183,255,0,.7); font-size: .64rem; font-weight: 700; letter-spacing: .2em; }
+.toro-auth-title { margin-top: .6rem; font-size: clamp(2rem, 9vw, 2.65rem); font-weight: 600; line-height: .95; letter-spacing: -.06em; }
+.toro-auth-copy { margin-top: .9rem; color: rgba(255,255,255,.45); font-size: .9rem; line-height: 1.55; }
+.toro-field { display: block; }
+.toro-field > span { display: flex; align-items: center; gap: .45rem; margin-bottom: .5rem; color: rgba(255,255,255,.55); font-size: .75rem; font-weight: 600; }
+.toro-field input { width: 100%; height: 3rem; border: 1px solid rgba(255,255,255,.09); border-radius: .8rem; background: rgba(255,255,255,.035); padding: 0 .85rem; color: white; font-size: .9rem; transition: border-color .2s, background .2s; }
+.toro-field input::placeholder { color: rgba(255,255,255,.25); }
+.toro-field input:focus { border-color: rgba(183,255,0,.5); background: rgba(183,255,0,.035); outline: none; }
+.toro-pin-input { letter-spacing: .42em; text-align: center; }
+.toro-primary-button { display: flex; width: 100%; min-height: 3rem; align-items: center; justify-content: center; gap: .5rem; border-radius: .8rem; background: #b7ff00; padding: .75rem 1rem; color: #080a06; font-size: .9rem; font-weight: 800; transition: transform .2s, background .2s; }
+.toro-primary-button:hover { background: #c7ff42; }
+.toro-primary-button:active { transform: scale(.98); }
+.toro-primary-button:disabled { cursor: wait; opacity: .6; }
+.toro-form-error, .toro-form-success { border-radius: .75rem; padding: .75rem; font-size: .8rem; line-height: 1.4; }
+.toro-form-error { border: 1px solid rgba(248,113,113,.2); background: rgba(248,113,113,.09); color: #fecaca; }
+.toro-form-success { border: 1px solid rgba(183,255,0,.2); background: rgba(183,255,0,.08); color: #d9ff94; }
+.toro-auth-footer { margin-top: 1.5rem; text-align: center; color: rgba(255,255,255,.45); font-size: .82rem; }
+.toro-auth-footer a { color: #b7ff00; font-weight: 700; }
+
+/* Fondo ambiental persistente: inspirado en las ondas suaves de PS3. */
+.toro-ambient { position: fixed; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; background: #080a08; }
+.toro-ambient::before { position: absolute; inset: 0; content: ""; opacity: .44; background: radial-gradient(ellipse at 55% -20%, rgba(183,255,0,.09), transparent 48%), radial-gradient(ellipse at 8% 105%, rgba(56,189,248,.09), transparent 42%), radial-gradient(ellipse at 105% 72%, rgba(217,70,239,.075), transparent 36%); }
+.toro-ambient__aurora { position: absolute; width: 52vmax; height: 52vmax; border-radius: 50%; filter: blur(85px); opacity: .22; will-change: transform; }
+.toro-ambient__aurora--lime { top: 18%; right: -45vmax; background: #b7ff00; animation: toro-aurora-lime 24s ease-in-out infinite alternate; }
+.toro-ambient__aurora--sky { bottom: -34vmax; left: -28vmax; background: #38bdf8; animation: toro-aurora-sky 30s ease-in-out infinite alternate; }
+.toro-ambient__aurora--violet { top: 27%; left: 38%; width: 32vmax; height: 32vmax; background: #d946ef; opacity: .09; animation: toro-aurora-violet 28s ease-in-out infinite alternate; }
+.toro-ambient__wave { position: absolute; left: -25%; width: 150%; height: 42%; border: 1px solid rgba(183,255,0,.16); border-radius: 48% 52% 0 0 / 75% 80% 0 0; filter: blur(.2px); opacity: .24; will-change: transform; }
+.toro-ambient__wave--one { bottom: -24%; box-shadow: 0 -1px 35px rgba(183,255,0,.12), inset 0 1px 26px rgba(56,189,248,.06); animation: toro-wave-one 18s cubic-bezier(.45,.05,.55,.95) infinite alternate; }
+.toro-ambient__wave--two { bottom: -31%; border-color: rgba(56,189,248,.16); box-shadow: 0 -1px 40px rgba(56,189,248,.11); animation: toro-wave-two 23s cubic-bezier(.45,.05,.55,.95) infinite alternate; }
+.toro-ambient__grain { position: absolute; inset: 0; opacity: .12; background-image: radial-gradient(rgba(255,255,255,.18) .45px, transparent .55px); background-size: 5px 5px; mask-image: linear-gradient(to bottom, transparent, black 25%, black 75%, transparent); }
+
+@keyframes toro-aurora-lime { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(-17vmax, 13vmax, 0) scale(1.24); } }
+@keyframes toro-aurora-sky { from { transform: translate3d(0,0,0) scale(1.05); } to { transform: translate3d(21vmax,-12vmax,0) scale(.86); } }
+@keyframes toro-aurora-violet { from { transform: translate3d(-7vmax, -3vmax, 0) scale(.9); } to { transform: translate3d(11vmax, 8vmax, 0) scale(1.25); } }
+@keyframes toro-wave-one { from { transform: translate3d(-5%, 0, 0) rotate(-3deg) scaleY(.8); } to { transform: translate3d(6%, -7%, 0) rotate(3deg) scaleY(1.18); } }
+@keyframes toro-wave-two { from { transform: translate3d(7%, 4%, 0) rotate(4deg) scaleY(1.1); } to { transform: translate3d(-8%, -5%, 0) rotate(-4deg) scaleY(.82); } }
+
+/* Las superficies de las pantallas dejan ver el ambiente persistente. */
+main[class*="bg-[#090a08]"], main[class*="bg-[#080908]"], main[class*="bg-[#070807]"], div[class*="bg-[#070807]"], div[class*="bg-[#080808]"] { background-color: transparent !important; }
+.toro-auth-page::before { background-size: 130% 130%; animation: toro-auth-drift 20s ease-in-out infinite alternate; }
+.toro-auth-glow--lime { animation: toro-auth-float 16s ease-in-out infinite alternate; }
+.toro-auth-glow--sky, .toro-auth-glow--violet { animation: toro-auth-float-reverse 20s ease-in-out infinite alternate; }
+@keyframes toro-auth-drift { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
+@keyframes toro-auth-float { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(-65px, 55px, 0) scale(1.28); } }
+@keyframes toro-auth-float-reverse { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(55px, -45px, 0) scale(.84); } }
+
+@media (min-width: 640px) { .toro-auth-card { padding: 2rem; } }
+@media (prefers-reduced-motion: reduce) { *, ::before, ::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }

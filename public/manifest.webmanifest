@@ -1,0 +1,19 @@
+{
+  "name": "TORO",
+  "short_name": "TORO",
+  "description": "Entrenamiento, hábitos y nutrición, también sin conexión.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#090a08",
+  "theme_color": "#090a08",
+  "lang": "es-AR",
+  "categories": ["health", "fitness", "lifestyle"],
+  "icons": [
+    { "src": "/icons/toro-icon-1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/toro-icon-1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "maskable" }
+  ]
+}
