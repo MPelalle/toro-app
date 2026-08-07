@@ -5,8 +5,7 @@ import { formatExercisePerformance } from "@/lib/workout-share/format-exercise-p
 import type { CompletedWorkoutShareData } from "@/types/workout-share";
 
 const WIDTH = 1080;
-const OUTER_PADDING = 72;
-const CARD_WIDTH = WIDTH - OUTER_PADDING * 2;
+const CARD_WIDTH = WIDTH;
 
 function safeFileName(workoutName: string, completedAt: Date | string) {
   const date = new Date(completedAt);
@@ -33,6 +32,10 @@ function fitText(context: CanvasRenderingContext2D, text: string, maxWidth: numb
 
 function drawRule(context: CanvasRenderingContext2D, x1: number, x2: number, y: number) {
   context.save();
+  context.shadowColor = "transparent";
+  context.shadowBlur = 0;
+  context.shadowOffsetX = 0;
+  context.shadowOffsetY = 0;
   context.strokeStyle = "rgba(255,255,255,.28)";
   context.lineWidth = 1;
   context.beginPath();
@@ -54,27 +57,28 @@ async function createPng(workout: CompletedWorkoutShareData) {
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
   canvas.width = WIDTH * ratio;
   canvas.height = height * ratio;
-  const context = canvas.getContext("2d");
+  const context = canvas.getContext("2d", { alpha: true });
   if (!context) throw new Error("Este navegador no permite generar imágenes.");
   context.scale(ratio, ratio);
+  context.clearRect(0, 0, WIDTH, height);
 
-  const cardX = OUTER_PADDING;
-  const cardY = 40;
-  const cardHeight = height - 80;
-  context.save();
-  context.shadowColor = "rgba(0,0,0,.7)";
-  context.shadowBlur = 36;
-  context.fillStyle = "rgba(10,11,8,.94)";
-  context.fillRect(cardX, cardY, CARD_WIDTH, cardHeight);
-  context.restore();
-  context.strokeStyle = "rgba(255,255,255,.35)";
-  context.lineWidth = 1;
-  context.strokeRect(cardX + .5, cardY + .5, CARD_WIDTH - 1, cardHeight - 1);
+  // A new canvas starts transparent. Do not paint a card background or shadow:
+  // the exported PNG must preserve that alpha when it is shared elsewhere.
+  const cardX = 0;
+  const cardY = 0;
+  const cardHeight = height;
 
-  const contentX = cardX + 48;
-  const contentRight = cardX + CARD_WIDTH - 48;
+  const contentX = cardX + 24;
+  const contentRight = cardX + CARD_WIDTH - 24;
   const logo = await loadImage("/header.png");
   context.drawImage(logo, contentRight - 116, cardY + 31, 92, 92);
+
+  // The canvas itself remains transparent. The shadow is painted only around
+  // glyphs, so the information stays legible on a photo without adding a box.
+  context.shadowColor = "rgba(0,0,0,.9)";
+  context.shadowBlur = 12;
+  context.shadowOffsetX = 2;
+  context.shadowOffsetY = 5;
 
   context.fillStyle = "#ffffff";
   context.font = "900 64px Inter, Arial, sans-serif";
