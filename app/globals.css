@@ -264,6 +264,20 @@ main[class*="bg-[#090a08]"], main[class*="bg-[#080908]"], main[class*="bg-[#0708
 
 @media (min-width: 640px) { .toro-auth-card { padding: 2rem; } }
 
+/* Keep dashboard content and fixed status messages clear of iOS notches,
+   Dynamic Island and the home indicator. On Android these insets resolve to 0. */
+.toro-dashboard-content {
+  padding-top: env(safe-area-inset-top);
+}
+
+.top-24[role="status"] {
+  top: calc(env(safe-area-inset-top) + 6rem);
+}
+
+.bottom-25[role="status"] {
+  bottom: calc(env(safe-area-inset-bottom) + 6.25rem);
+}
+
 /* On compact touch screens, expensive full-screen blurs can make scrolling and
    taps noticeably slower. Keep the same layered look, but reduce the GPU work
    only for the devices most affected by it. Larger screens and pointer devices

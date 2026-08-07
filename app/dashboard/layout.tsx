@@ -26,7 +26,7 @@ export default async function DashboardLayout({
       <OfflineReadiness user={{ id: user.id, email: user.email, name: user.name, username: user.username }} />
       <OfflineSyncIndicator />
       <ToroHeader/>
-      <main className="relative z-10 pb-28">
+      <main className="toro-dashboard-content relative z-10 pb-28">
         <DashboardPageTransition>{children}</DashboardPageTransition>
       </main>
 
