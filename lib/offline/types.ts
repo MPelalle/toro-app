@@ -56,6 +56,7 @@ export type OfflineWorkoutSet = SyncMetadata & {
   weight: number | null;
   rir: number | null;
   rpe: number | null;
+  kind: "WARMUP" | "NORMAL" | "DROP" | "FAILURE";
   completed: boolean;
   note: string | null;
 };

@@ -33,6 +33,7 @@ function makeSessionExercise(exercise: RoutineExercise, position: number, sessio
       weight: null,
       rir: null,
       rpe: null,
+      kind: "NORMAL",
       completed: false,
       note: null,
     })),

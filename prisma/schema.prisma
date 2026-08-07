@@ -297,6 +297,7 @@ model WorkoutSet {
   weight            Float?
   rir               Int?
   rpe               Int?
+  kind              String   @default("NORMAL")
   note              String?
   completed         Boolean  @default(false)
   createdAt         DateTime @default(now()) @map("created_at")

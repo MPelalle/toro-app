@@ -2,7 +2,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
 import { hasTrustedOrigin, isUuid, originError } from "@/lib/security";
 
-type IncomingSet = { id: string; setNumber: number; targetReps: number; targetWeight: number; reps: number | null; weight: number | null; rir: number | null; rpe: number | null; note: string | null; completed: boolean };
+type WorkoutSetKind = "WARMUP" | "NORMAL" | "DROP" | "FAILURE";
+type IncomingSet = { id: string; setNumber: number; targetReps: number; targetWeight: number; reps: number | null; weight: number | null; rir: number | null; rpe: number | null; kind: WorkoutSetKind; note: string | null; completed: boolean };
 type IncomingExercise = { id: string; routineExerciseId: string; position: number; name: string; muscle: string; sets: IncomingSet[] };
 type IncomingSession = { id: string; routineId: string; status: "IN_PROGRESS" | "FINISHED"; startedAt: Date; finishedAt: Date | null; durationSeconds: number | null; notes: string | null; emotionalRating: number | null; version: number; updatedAt: Date; clientUpdatedAt: Date; exercises: IncomingExercise[] };
 
@@ -25,9 +26,9 @@ function readSession(body: unknown): IncomingSession | null {
     const sets: IncomingSet[] = [];
     for (const [setIndex, set] of item.sets.entries()) {
       if (!isRecord(set) || !isUuid(String(set.id || ""))) return null;
-      const targetReps = numberInRange(set.targetReps, 1, 100, true); const targetWeight = numberInRange(set.targetWeight, 0, 1000); const reps = set.reps === null ? null : numberInRange(set.reps, 0, 100, true); const weight = set.weight === null ? null : numberInRange(set.weight, 0, 1000); const rir = set.rir === null || set.rir === undefined ? null : numberInRange(set.rir, 0, 10, true); const rpe = set.rpe === null || set.rpe === undefined ? null : numberInRange(set.rpe, 1, 10, true); const note = nullableText(set.note, 500);
-      if (targetReps === null || targetWeight === null || reps === null && set.reps !== null || weight === null && set.weight !== null || rir === null && set.rir !== null && set.rir !== undefined || rpe === null && set.rpe !== null && set.rpe !== undefined || typeof set.completed !== "boolean") return null;
-      sets.push({ id: String(set.id), setNumber: setIndex + 1, targetReps, targetWeight, reps, weight, rir, rpe, note, completed: set.completed });
+      const targetReps = numberInRange(set.targetReps, 1, 100, true); const targetWeight = numberInRange(set.targetWeight, 0, 1000); const reps = set.reps === null ? null : numberInRange(set.reps, 0, 100, true); const weight = set.weight === null ? null : numberInRange(set.weight, 0, 1000); const rir = set.rir === null || set.rir === undefined ? null : numberInRange(set.rir, 0, 10, true); const rpe = set.rpe === null || set.rpe === undefined ? null : numberInRange(set.rpe, 1, 10, true); const kind = set.kind === undefined ? "NORMAL" : set.kind; const note = nullableText(set.note, 500);
+      if (targetReps === null || targetWeight === null || reps === null && set.reps !== null || weight === null && set.weight !== null || rir === null && set.rir !== null && set.rir !== undefined || rpe === null && set.rpe !== null && set.rpe !== undefined || !["WARMUP", "NORMAL", "DROP", "FAILURE"].includes(String(kind)) || typeof set.completed !== "boolean") return null;
+      sets.push({ id: String(set.id), setNumber: setIndex + 1, targetReps, targetWeight, reps, weight, rir, rpe, kind: kind as WorkoutSetKind, note, completed: set.completed });
     }
     exercises.push({ id: String(item.id), routineExerciseId: String(item.routineExerciseId), position, name: String(item.name).trim(), muscle: String(item.muscle).trim(), sets });
   }
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
     if (existing) { await tx.workoutSessionExercise.deleteMany({ where: { sessionId: session.id } }); await tx.workoutSession.update({ where: { id: session.id }, data }); }
     else await tx.workoutSession.create({ data: { id: session.id, userId: user.id, routineId: session.routineId, ...data } });
     await tx.workoutSessionExercise.createMany({ data: session.exercises.map((exercise) => ({ id: exercise.id, sessionId: session.id, routineExerciseId: exercise.routineExerciseId, position: exercise.position, name: exercise.name, muscle: exercise.muscle })) });
-    await tx.workoutSet.createMany({ data: session.exercises.flatMap((exercise) => exercise.sets.map((set) => ({ id: set.id, sessionExerciseId: exercise.id, setNumber: set.setNumber, targetReps: set.targetReps, targetWeight: set.targetWeight, reps: set.reps, weight: set.weight, rir: set.rir, rpe: set.rpe, note: set.note, completed: set.completed }))) });
+    await tx.workoutSet.createMany({ data: session.exercises.flatMap((exercise) => exercise.sets.map((set) => ({ id: set.id, sessionExerciseId: exercise.id, setNumber: set.setNumber, targetReps: set.targetReps, targetWeight: set.targetWeight, reps: set.reps, weight: set.weight, rir: set.rir, rpe: set.rpe, kind: set.kind, note: set.note, completed: set.completed }))) });
   });
   return Response.json({ ok: true, applied: true });
 }

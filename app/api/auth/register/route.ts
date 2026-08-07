@@ -42,9 +42,17 @@ export async function POST(request: NextRequest) {
     await prisma.authToken.deleteMany({ where: { userId, type: "VERIFY_EMAIL" } });
     const token = createToken();
     await prisma.authToken.create({ data: { userId, tokenHash: hashToken(token), type: "VERIFY_EMAIL", expiresAt: new Date(Date.now() + 86_400_000) } });
-    const origin = process.env.APP_URL || request.nextUrl.origin;
-    if (!/^https?:\/\//.test(origin)) throw new Error("APP_URL invÃ¡lida");
-    await sendVerificationEmail(email, `${origin}/api/auth/verify?token=${encodeURIComponent(token)}`);
+    const configuredUrl = process.env.APP_URL?.trim();
+    const appUrl = configuredUrl || request.nextUrl.origin;
+    let verificationUrl: URL;
+    try {
+      verificationUrl = new URL("/api/auth/verify", appUrl);
+    } catch {
+      throw new Error("APP_URL inválida");
+    }
+    if (!['http:', 'https:'].includes(verificationUrl.protocol)) throw new Error("APP_URL inválida");
+    verificationUrl.searchParams.set("token", token);
+    await sendVerificationEmail(email, verificationUrl.toString());
     return NextResponse.json({ message: "Te enviamos un correo de confirmación. Revisá tu casilla para activar tu cuenta." });
   } catch (error) {
     console.error("register error", error);

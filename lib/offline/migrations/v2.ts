@@ -129,6 +129,7 @@ function migrateSessions(transaction: IDBTransaction, now: string) {
           weight: typeof sourceSet.weight === "number" ? sourceSet.weight : null,
           rir: null,
           rpe: null,
+          kind: "NORMAL",
           completed: sourceSet.completed === true,
           note: null,
         };

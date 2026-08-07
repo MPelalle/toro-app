@@ -1,0 +1,1 @@
+ALTER TABLE "workout_sets" ADD COLUMN "kind" TEXT NOT NULL DEFAULT 'NORMAL';
