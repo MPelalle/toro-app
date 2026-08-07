@@ -236,30 +236,6 @@ export const ToroWelcomeMenu: React.FC = () => {
 
     </div>
 
-    <div className="mt-7 flex justify-center">
-
-      <a
-        href="https://instagram.com"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="
-        rounded-full
-        border
-        border-white/8
-        bg-white/2.5
-        px-5
-        py-2.5
-        text-[13px]
-        text-white/45
-        backdrop-blur-xl
-        transition-colors
-        hover:text-white
-      "
-      >
-        Conocé TORO y su propósito
-      </a>
-
-    </div>
 
   </div>
 

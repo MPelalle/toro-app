@@ -611,8 +611,10 @@ export default function ToroSidebar({
 
                 {/* EXORA */}
 
-                <button
-                  type="button"
+                <a
+                  href="https://exora.vercel.app"
+                  target="_blank"
+                  rel="noreferrer"
                   className="
                     group
                     flex
@@ -663,12 +665,14 @@ export default function ToroSidebar({
                       group-hover:text-white/60
                     "
                   />
-                </button>
+                </a>
 
                 {/* KULTURISM */}
 
-                <button
-                  type="button"
+                <a
+                  href="https://kulturism.vercel.app"
+                  target="_blank"
+                  rel="noreferrer"
                   className="
                     group
                     relative
@@ -747,7 +751,7 @@ export default function ToroSidebar({
                       group-hover:text-[#B7FF00]
                     "
                   />
-                </button>
+                </a>
               </motion.div>
             </div>
 

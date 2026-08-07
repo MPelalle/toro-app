@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Menu, Play, RotateCcw, Square, Timer } from "lucide-react";
-import Image from "next/image";
 import ToroSidebar from "./SideBar";
 
 
@@ -49,7 +48,7 @@ export default function ToroHeader({ onMenuClick }: ToroHeaderProps) {
   return (
     <>
       {/* HEADER */}
-      <header className="fixed top-4 left-1/2 z-50 w-[calc(100%_-_24px)] max-w-7xl -translate-x-1/2">
+      <header className="fixed left-1/2 z-50 w-[calc(100%-24px)] max-w-7xl -translate-x-1/2" style={{ top: "max(1rem, calc(env(safe-area-inset-top) + 0.5rem))" }}>
   {/* Ambient shadow / gradient */}
   <div
     className="
@@ -132,12 +131,6 @@ export default function ToroHeader({ onMenuClick }: ToroHeaderProps) {
                 justify-center
               "
             >
-              <Image
-                src="/header.png"
-                alt="Toro Logo"
-                width={70}
-                height={98}
-              />
             </div>
           </div>
 
