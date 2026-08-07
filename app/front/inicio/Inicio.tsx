@@ -159,8 +159,8 @@ export const ToroWelcomeMenu: React.FC = () => {
     <Image
       src="/header.png"
       alt="Toro Logo"
-      width={300}
-      height={250}
+      width={100}
+      height={150}
     />
   </div>
 
