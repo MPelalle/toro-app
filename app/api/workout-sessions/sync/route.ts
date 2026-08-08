@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   if (!user) return Response.json({ error: "No autorizado" }, { status: 401 });
   const session = readSession(await request.json().catch(() => null));
   if (!session) return Response.json({ error: "Sesión inválida" }, { status: 400 });
-  const prisma = getPrisma(); const routine = await prisma.routinePlan.findFirst({ where: { id: session.routineId, userId: user.id }, select: { id: true } });
+  const prisma = getPrisma(); const routine = await prisma.routinePlan.findFirst({ where: { id: session.routineId, OR: [{ userId: user.id, kind: "PERSONAL" }, { kind: "SHARED", members: { some: { userId: user.id } } }] }, select: { id: true } });
   if (!routine) return Response.json({ error: "Rutina no encontrada" }, { status: 404 });
   const existing = await prisma.workoutSession.findFirst({ where: { id: session.id, userId: user.id }, select: { clientUpdatedAt: true, updatedAt: true, version: true } });
   if (existing && existing.clientUpdatedAt.getTime() === session.clientUpdatedAt.getTime() && existing.version === session.version) return Response.json({ ok: true, applied: false });

@@ -34,7 +34,7 @@ function readRoutine(body: unknown) {
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "No autorizado" }, { status: 401 });
-  const plans = await getPrisma().routinePlan.findMany({ where: { userId: user.id }, include, orderBy: { createdAt: "desc" } });
+  const plans = await getPrisma().routinePlan.findMany({ where: { userId: user.id, kind: "PERSONAL" }, include, orderBy: { createdAt: "desc" } });
   return Response.json(plans.map(serialize));
 }
 
@@ -52,11 +52,11 @@ export async function POST(request: Request) {
       return Response.json(serialize(existing));
     }
   }
-  const count = await prisma.routinePlan.count({ where: { userId: user.id } });
+  const count = await prisma.routinePlan.count({ where: { userId: user.id, kind: "PERSONAL" } });
   if (count >= 5) return Response.json({ error: "Podés guardar hasta cinco rutinas." }, { status: 400 });
   const plan = await prisma.$transaction(async (tx) => {
     await tx.routinePlan.updateMany({ where: { userId: user.id, active: true }, data: { active: false } });
-    return tx.routinePlan.create({ data: { ...(values.id ? { id: values.id } : {}), name: values.name, type: values.type, days: values.days, userId: user.id, active: true, exercises: { create: values.exercises } }, include });
+    return tx.routinePlan.create({ data: { ...(values.id ? { id: values.id } : {}), name: values.name, type: values.type, kind: "PERSONAL", days: values.days, userId: user.id, updatedById: user.id, active: true, exercises: { create: values.exercises } }, include });
   });
   return Response.json(serialize(plan), { status: 201 });
 }

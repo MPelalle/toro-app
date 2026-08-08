@@ -19,7 +19,7 @@ async function writeRoutine(transaction: IDBTransaction, routine: Routine, userI
   const now = new Date().toISOString();
   const createdAt = existing?.createdAt ?? routine.createdAt ?? now;
   const base = { ...routineMetadata(routine.id, userId, createdAt, now), version: existing?.version ?? 1 };
-  routines.put({ ...base, name: routine.name, type: routine.type, active: routine.active } satisfies LocalRoutine);
+  routines.put({ ...base, name: routine.name, type: routine.type, kind: routine.kind, active: routine.active } satisfies LocalRoutine);
 
   const daysStore = transaction.objectStore(STORES.routineDays);
   const exercisesStore = transaction.objectStore(STORES.routineExercises);
@@ -96,6 +96,7 @@ async function hydrateRoutine(transaction: IDBTransaction, routine: LocalRoutine
     id: routine.id,
     name: routine.name,
     type: routine.type,
+    kind: routine.kind,
     active: routine.active,
     days: days.filter((day) => !day.deletedAt).sort((a, b) => a.position - b.position).map((day) => day.name),
     exercises: exercises.filter((exercise) => !exercise.deletedAt).sort((a, b) => a.position - b.position).map(toRoutineExercise),

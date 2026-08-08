@@ -7,6 +7,7 @@ import {
   Dumbbell,
   Home,
   User,
+  UsersRound,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 
@@ -16,6 +17,7 @@ const routes = {
   diet: "/dashboard/diet",
   habits: "/dashboard/habits",
   profile: "/dashboard/user",
+  community: "/dashboard/community",
 };
 
 export default function ToroBottomNav() {
@@ -26,6 +28,7 @@ export default function ToroBottomNav() {
   const dietActive = pathname.startsWith(routes.diet);
   const habitsActive = pathname.startsWith(routes.habits);
   const profileActive = pathname.startsWith(routes.profile);
+  const communityActive = pathname.startsWith(routes.community);
 
   return (
     <>
@@ -121,6 +124,10 @@ export default function ToroBottomNav() {
               className="h-5 w-5"
               strokeWidth={trainingActive ? 2.4 : 1.8}
             />
+          </CenterButton>
+
+          <CenterButton href={routes.community} active={communityActive} label="Comunidad">
+            <UsersRound className="h-4.75 w-4.75" strokeWidth={communityActive ? 2.4 : 1.8} />
           </CenterButton>
 
           <CenterButton href={routes.habits} active={habitsActive} label="Hábitos">

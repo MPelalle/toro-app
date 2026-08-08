@@ -17,8 +17,8 @@ export async function POST(request: NextRequest) {
     const email = String(body.email ?? "").trim().toLowerCase();
     const username = String(body.username ?? "").trim();
     const pin = String(body.pin ?? "");
-    if (!EMAIL_PATTERN.test(email) || !/^[a-zA-Z0-9._-]{3,30}$/.test(username) || !/^\d{6}$/.test(pin)) {
-      return NextResponse.json({ error: "Completá un email válido, un usuario de 3 a 30 caracteres y un PIN de 6 dígitos." }, { status: 400 });
+    if (!EMAIL_PATTERN.test(email) || !/^[a-zA-Z0-9._]{3,20}$/.test(username) || !/^\d{6}$/.test(pin)) {
+      return NextResponse.json({ error: "Completá un email válido, un nickname de 3 a 20 caracteres (letras, números, . o _) y un PIN de 6 dígitos." }, { status: 400 });
     }
 
     const prisma = getPrisma();
@@ -31,12 +31,12 @@ export async function POST(request: NextRequest) {
       const usernameTaken = await prisma.user.findFirst({ where: { username, id: { not: existing.id } } });
       if (usernameTaken) return NextResponse.json({ error: "No pudimos crear la cuenta con esos datos." }, { status: 409 });
       userId = existing.id;
-      await prisma.user.update({ where: { id: userId }, data: { username, name: username, pinHash: hashPin(pin) } });
+      await prisma.user.update({ where: { id: userId }, data: { username, nickname: username.toLowerCase(), name: username, pinHash: hashPin(pin) } });
     } else {
       const usernameTaken = await prisma.user.findUnique({ where: { username } });
       if (usernameTaken) return NextResponse.json({ error: "Ese nombre de usuario ya está en uso." }, { status: 409 });
       userId = randomUUID();
-      await prisma.user.create({ data: { id: userId, email, username, name: username, pinHash: hashPin(pin) } });
+      await prisma.user.create({ data: { id: userId, email, username, nickname: username.toLowerCase(), name: username, pinHash: hashPin(pin) } });
     }
 
     await prisma.authToken.deleteMany({ where: { userId, type: "VERIFY_EMAIL" } });

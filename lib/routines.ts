@@ -3,7 +3,7 @@ import { enqueueRoutineRequest } from "@/lib/offline/repositories/operations";
 import { setRoutineSyncStatus } from "@/lib/offline/repositories/routines";
 
 export type RoutineExercise = { id: string; name: string; muscle: string; sets: number; reps: number; weight: number; technique: string; completed: boolean | null; actualReps: number | null; note: string; trainingDay: string };
-export type Routine = { id: string; name: string; type: string; days: string[]; active: boolean; exercises: RoutineExercise[]; createdAt: string };
+export type Routine = { id: string; name: string; type: string; kind?: "PERSONAL" | "SHARED"; days: string[]; active: boolean; exercises: RoutineExercise[]; createdAt: string };
 
 export async function routineRequest<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...(options?.headers || {}) } });

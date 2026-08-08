@@ -10,6 +10,7 @@ import {
   Mail,
   Medal,
   Trophy,
+  UsersRound,
   X,
 } from "lucide-react";
 import Image from "next/image";
@@ -49,6 +50,12 @@ const sections = [
         description: "Constancia diaria y reflexiones",
         href: "/dashboard/habits",
         icon: CircleHelp,
+      },
+      {
+        label: "Comunidad",
+        description: "Amigos y rutinas compartidas",
+        href: "/dashboard/community",
+        icon: UsersRound,
       },
     ],
   },

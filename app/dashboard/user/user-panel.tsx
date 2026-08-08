@@ -9,7 +9,7 @@ import { BadgeShowcase, UserBadgeStrip } from "@/components/badges/UserBadges";
 import type { UserBadge } from "@/lib/badges";
 
 type UserPanelProps = {
-  user: { name: string; email: string; createdAt: string };
+  user: { name: string; email: string; nickname: string; createdAt: string };
   badges: UserBadge[];
   stats: { logins: number; seconds: number; habitCompletions: number; dietLogs: number };
 };
@@ -59,6 +59,7 @@ export default function UserPanel({ user, badges, stats }: UserPanelProps) {
         <form action={action} className="rounded-[28px] border border-white/8 bg-[#10110e]/95 p-5 sm:p-7">
           <p className="text-[10px] font-bold tracking-[.18em] text-[#b7ff00]/70">PERFIL</p><p className="mt-2 text-sm leading-6 text-white/40">Actualizá la información básica de tu cuenta.</p>
           <label className="mt-7 block"><span className="mb-2 block text-xs font-medium text-white/55">Nombre</span><input className="input" name="name" defaultValue={user.name} /></label>
+          <label className="mt-5 block"><span className="mb-2 block text-xs font-medium text-white/55">Nickname</span><div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-white/35">@</span><input className="input pl-7" name="nickname" defaultValue={user.nickname} maxLength={20} autoCapitalize="none" pattern="[A-Za-z0-9._]{3,20}" /></div><span className="mt-1 block text-[11px] text-white/30">Te encuentran por este nombre. Sin espacios.</span></label>
           <label className="mt-5 block"><span className="mb-2 block text-xs font-medium text-white/55">Email</span><input className="input opacity-55" value={user.email} readOnly /></label>
           {state && <p className="mt-3 text-xs text-[#b7ff00]">{state}</p>}
           <button disabled={pending} className="mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-[#b7ff00] px-5 py-3 text-sm font-bold text-black disabled:opacity-50"><Save size={16} />{pending ? "Guardando…" : "Guardar perfil"}</button>
