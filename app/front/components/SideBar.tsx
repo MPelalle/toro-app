@@ -771,6 +771,10 @@ export default function ToroSidebar({
                   <p className="mt-0.5 text-[10px] text-white/10">
                     Build your best version.
                   </p>
+
+                  <p className="mt-2 text-[10px] font-medium text-white/20">
+                    Versión 1.1
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-2">

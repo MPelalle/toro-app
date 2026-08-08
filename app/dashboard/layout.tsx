@@ -8,6 +8,7 @@ import AmbientBackdrop from "../components/ambient-backdrop";
 import OfflineSyncIndicator from "./offline-sync-indicator";
 import OfflineIdentity from "./offline-identity";
 import OfflineReadiness from "./offline-readiness";
+import { getDashboardHeaderStats } from "@/lib/dashboard-header";
 
 
 export default async function DashboardLayout({
@@ -17,6 +18,7 @@ export default async function DashboardLayout({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  const headerStats = await getDashboardHeaderStats(user.id);
 
   return (
     <div className="isolate min-h-dvh bg-[#090a08]">
@@ -25,7 +27,7 @@ export default async function DashboardLayout({
       <OfflineIdentity user={{ id: user.id, email: user.email, name: user.name, username: user.username }} />
       <OfflineReadiness user={{ id: user.id, email: user.email, name: user.name, username: user.username }} />
       <OfflineSyncIndicator />
-      <ToroHeader/>
+      <ToroHeader stats={headerStats}/>
       <main className="toro-dashboard-content relative z-10 pb-28">
         <DashboardPageTransition>{children}</DashboardPageTransition>
       </main>

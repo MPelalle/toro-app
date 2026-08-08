@@ -48,10 +48,22 @@ model User {
   diets DietPlan[]
   routines RoutinePlan[]
   workoutSessions WorkoutSession[]
+  dailyVisits AppDailyVisit[]
   authTokens AuthToken[]
   sessions Session[]
 
   @@map("users")
+}
+
+model AppDailyVisit {
+  userId    String   @map("user_id") @db.Uuid
+  date      DateTime @db.Date
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, date])
+  @@map("app_daily_visits")
 }
 
 model DietPlan {

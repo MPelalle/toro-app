@@ -14,12 +14,13 @@ export type DietMeal = {
   foods: string[];
 };
 
-export type Food = { id: string; name: string; serving: string; kcal: number; protein: number; carbs: number; fats: number; group: string };
+export type Food = { id: string; name: string; serving: string; unit: string; kcal: number; protein: number; carbs: number; fats: number; group: string };
 
 export const foodCatalog: Food[] = dietFoodOptions.map((food) => ({
   id: food.id,
   name: food.name,
   serving: `100 ${food.unit}`,
+  unit: food.unit,
   kcal: food.nutritionPer100.kcal,
   protein: food.nutritionPer100.protein,
   carbs: food.nutritionPer100.carbs,
