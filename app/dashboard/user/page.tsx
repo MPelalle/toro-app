@@ -12,5 +12,5 @@ export default async function UserPage() {
     getPrisma().dietDailyLog.count({ where: { diet: { userId: user.id } } }),
     getUserBadgeProfile(user.id, displayName),
   ]);
-  return <UserPanel user={{ name: badgeProfile.displayName, email: user.email || "", nickname: user.nickname || user.username || "", createdAt: user.createdAt.toISOString() }} badges={badgeProfile.badges} stats={{ logins: user.loginCount, seconds: user.appSeconds, habitCompletions, dietLogs }} />;
+  return <UserPanel user={{ name: badgeProfile.displayName, email: user.email || "", nickname: user.nickname || user.username || "", avatarUrl: user.avatarUrl, createdAt: user.createdAt.toISOString() }} badges={badgeProfile.badges} stats={{ logins: user.loginCount, seconds: user.appSeconds, habitCompletions, dietLogs }} />;
 }

@@ -176,7 +176,7 @@ export async function getSharedRoutineDashboard(userId: string, routineId: strin
   const metrics = new Map(memberIds.map((id) => [id, { sessions: 0, volume: 0, sets: 0, prs: 0 }]));
   const progress = new Map<string, Map<string, { current: number; previous: number }>>();
   const personalBest = new Map<string, Map<string, number>>();
-  const activity: Array<{ id: string; date: string; text: string }> = [];
+  const activity: Array<{ id: string; userId: string; name: string; nickname: string | null; avatarUrl: string | null; date: string; text: string }> = [];
   for (const session of sessions) {
     const at = session.finishedAt || session.updatedAt;
     const currentWeek = at >= since;
@@ -201,7 +201,7 @@ export async function getSharedRoutineDashboard(userId: string, routineId: strin
     }
     if (currentWeek) { metric.volume += sessionVolume; metric.sets += completedSets; metric.prs += sessionPrs; }
     const member = routine.members.find((item) => item.userId === session.userId)?.user;
-    if (member && session.status === "FINISHED") activity.push({ id: session.id, date: at.toISOString(), text: `@${member.nickname || member.name || "atleta"} completó ${routine.name}` });
+    if (member && session.status === "FINISHED") activity.push({ id: session.id, userId: session.userId, name: member.name || member.nickname || "Atleta", nickname: member.nickname, avatarUrl: member.avatarUrl, date: at.toISOString(), text: `@${member.nickname || member.name || "atleta"} completó ${routine.name}` });
   }
   return {
     routine: { id: routine.id, name: routine.name, type: routine.type, days: Array.isArray(routine.days) ? routine.days : [], updatedAt: routine.updatedAt.toISOString(), updatedBy: routine.updatedBy ? (routine.updatedBy.nickname || routine.updatedBy.name) : null },

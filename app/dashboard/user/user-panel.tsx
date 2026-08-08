@@ -7,9 +7,11 @@ import { clearOfflineUser, syncPendingSessions, unsyncedSyncCount } from "@/lib/
 import { deleteAccount, updateProfile } from "./actions";
 import { BadgeShowcase, UserBadgeStrip } from "@/components/badges/UserBadges";
 import type { UserBadge } from "@/lib/badges";
+import { AVATAR_OPTIONS } from "@/lib/avatars";
+import { UserAvatar } from "@/components/user/UserAvatar";
 
 type UserPanelProps = {
-  user: { name: string; email: string; nickname: string; createdAt: string };
+  user: { name: string; email: string; nickname: string; avatarUrl: string | null; createdAt: string };
   badges: UserBadge[];
   stats: { logins: number; seconds: number; habitCompletions: number; dietLogs: number };
 };
@@ -18,6 +20,7 @@ export default function UserPanel({ user, badges, stats }: UserPanelProps) {
   const router = useRouter();
   const [logoutError, setLogoutError] = useState("");
   const [loggingOut, setLoggingOut] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(user.avatarUrl);
   const [state, action, pending] = useActionState(async (_: string, data: FormData) => {
     try {
       await updateProfile(data);
@@ -53,13 +56,14 @@ export default function UserPanel({ user, badges, stats }: UserPanelProps) {
     <div className="pointer-events-none absolute -right-24 top-20 h-80 w-80 rounded-full bg-sky-400/9 blur-3xl toro-breathe" />
     <div className="pointer-events-none absolute -left-24 top-128 h-72 w-72 rounded-full bg-fuchsia-500/[.07] blur-3xl toro-breathe-reverse" />
     <div className="relative mx-auto max-w-4xl">
-      <header><p className="text-[10px] font-bold tracking-[.22em] text-[#b7ff00]/70">TU ESPACIO</p><div className="mt-2 flex flex-wrap items-center gap-3"><h1 className="text-4xl font-semibold tracking-[-.06em]">{user.name}</h1><UserBadgeStrip badges={badges} size="md" /></div><p className="mt-2 text-sm text-white/40">Perfil, progreso e insignias desbloqueadas.</p></header>
+      <header><p className="text-[10px] font-bold tracking-[.22em] text-[#b7ff00]/70">TU ESPACIO</p><div className="mt-2 flex flex-wrap items-center gap-3"><UserAvatar src={avatarUrl} name={user.name} nickname={user.nickname} size="lg"/><div><h1 className="text-4xl font-semibold tracking-[-.06em]">{user.name}</h1><p className="mt-1 text-sm text-white/40">@{user.nickname}</p></div><UserBadgeStrip badges={badges} size="md" /></div><p className="mt-2 text-sm text-white/40">Perfil, progreso e insignias desbloqueadas.</p></header>
       <BadgeShowcase badges={badges} />
       <div className="mt-7 grid gap-6 lg:grid-cols-[1fr_.8fr]">
         <form action={action} className="rounded-[28px] border border-white/8 bg-[#10110e]/95 p-5 sm:p-7">
           <p className="text-[10px] font-bold tracking-[.18em] text-[#b7ff00]/70">PERFIL</p><p className="mt-2 text-sm leading-6 text-white/40">Actualizá la información básica de tu cuenta.</p>
           <label className="mt-7 block"><span className="mb-2 block text-xs font-medium text-white/55">Nombre</span><input className="input" name="name" defaultValue={user.name} /></label>
           <label className="mt-5 block"><span className="mb-2 block text-xs font-medium text-white/55">Nickname</span><div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-white/35">@</span><input className="input pl-7" name="nickname" defaultValue={user.nickname} maxLength={20} autoCapitalize="none" pattern="[A-Za-z0-9._]{3,20}" /></div><span className="mt-1 block text-[11px] text-white/30">Te encuentran por este nombre. Sin espacios.</span></label>
+          <input type="hidden" name="avatarUrl" value={avatarUrl || ""}/><div className="mt-6 border-t border-white/[.07] pt-5"><div className="flex items-center gap-3"><UserAvatar src={avatarUrl} name={user.name} nickname={user.nickname} size="md"/><div><p className="text-sm font-semibold">Foto de perfil</p><p className="text-xs text-white/35">Elegí uno de los avatares de TORO.</p></div></div><div className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-5">{AVATAR_OPTIONS.map((src) => <button key={src} type="button" onClick={() => setAvatarUrl(src)} aria-label={`Elegir ${src}`} className={`rounded-full p-0.5 transition ${avatarUrl === src ? "bg-[#b7ff00] shadow-[0_0_18px_rgba(183,255,0,.25)]" : "bg-transparent opacity-60 hover:opacity-100"}`}><UserAvatar src={src} name={user.name} nickname={user.nickname} size="md" /></button>)}</div><button type="button" onClick={() => setAvatarUrl(null)} className="mt-4 text-xs font-semibold text-white/45 hover:text-[#b7ff00]">Usar inicial como avatar</button></div>
           <label className="mt-5 block"><span className="mb-2 block text-xs font-medium text-white/55">Email</span><input className="input opacity-55" value={user.email} readOnly /></label>
           {state && <p className="mt-3 text-xs text-[#b7ff00]">{state}</p>}
           <button disabled={pending} className="mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-[#b7ff00] px-5 py-3 text-sm font-bold text-black disabled:opacity-50"><Save size={16} />{pending ? "Guardando…" : "Guardar perfil"}</button>
