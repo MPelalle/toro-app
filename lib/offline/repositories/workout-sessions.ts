@@ -8,6 +8,13 @@ function createClientId() {
   return crypto.randomUUID();
 }
 
+const ACTIVE_WORKOUT_MAX_AGE_MS = 6 * 60 * 60 * 1_000;
+
+function isCurrentWorkoutSession(session: WorkoutSessionRow) {
+  const startedAt = Date.parse(session.startedAt);
+  return session.status === "IN_PROGRESS" && Number.isFinite(startedAt) && startedAt <= Date.now() && Date.now() - startedAt < ACTIVE_WORKOUT_MAX_AGE_MS;
+}
+
 function nowMetadata(id: string, now: string, status: SyncStatus): Omit<OfflineWorkoutSession, "routineId" | "status" | "startedAt" | "finishedAt" | "durationSeconds" | "notes" | "emotionalRating" | "clientUpdatedAt" | "exercises"> {
   return { id, userId: LEGACY_LOCAL_USER_ID, createdAt: now, updatedAt: now, deletedAt: null, syncStatus: status, lastSyncedAt: null, version: 1 };
 }
@@ -166,7 +173,7 @@ export async function getActiveLocalWorkoutSession(routineId: string) {
   const userId = await getActiveOfflineUserId();
   return inTransaction([STORES.workoutSessions, STORES.workoutSessionExercises, STORES.workoutSets], "readonly", async (transaction) => {
     const sessions = await getAllFromIndex<WorkoutSessionRow>(transaction, STORES.workoutSessions, "by-routine-id", routineId);
-    const active = sessions.filter((session) => session.userId === userId && !session.deletedAt && session.status === "IN_PROGRESS").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+    const active = sessions.filter((session) => session.userId === userId && !session.deletedAt && isCurrentWorkoutSession(session)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
     return active ? hydrateSession(transaction, active) : undefined;
   });
 }
@@ -176,7 +183,7 @@ export async function getCurrentActiveLocalWorkoutSession() {
   return inTransaction([STORES.workoutSessions, STORES.workoutSessionExercises, STORES.workoutSets], "readonly", async (transaction) => {
     const sessions = await getAllFromIndex<WorkoutSessionRow>(transaction, STORES.workoutSessions, "by-user-id", userId);
     const active = sessions
-      .filter((session) => !session.deletedAt && session.status === "IN_PROGRESS")
+      .filter((session) => !session.deletedAt && isCurrentWorkoutSession(session))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
     return active ? hydrateSession(transaction, active) : undefined;
   });

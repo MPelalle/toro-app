@@ -215,6 +215,7 @@ export default function ToroSidebar({
                 -translate-x-1/2
                 rounded-full
                 bg-white
+                opacity-[0.04]
                 blur-[140px]
               "
             />
