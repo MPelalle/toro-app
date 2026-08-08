@@ -1,3 +1,5 @@
+import { dietFoodOptions } from "@/lib/diet-food-catalog";
+
 export type DietGoal = "lose" | "maintain" | "gain";
 export type Sex = "male" | "female";
 
@@ -14,24 +16,16 @@ export type DietMeal = {
 
 export type Food = { id: string; name: string; serving: string; kcal: number; protein: number; carbs: number; fats: number; group: string };
 
-export const foodCatalog: Food[] = [
-  { id: "oats", name: "Avena", serving: "60 g", kcal: 228, protein: 8, carbs: 38, fats: 4, group: "Cereales" },
-  { id: "yogurt", name: "Yogur griego natural", serving: "170 g", kcal: 130, protein: 17, carbs: 7, fats: 3, group: "Lácteos" },
-  { id: "banana", name: "Banana", serving: "1 mediana", kcal: 105, protein: 1, carbs: 27, fats: 0, group: "Frutas" },
-  { id: "eggs", name: "Huevos", serving: "2 unidades", kcal: 144, protein: 13, carbs: 1, fats: 10, group: "Proteínas" },
-  { id: "toast", name: "Pan integral", serving: "2 rebanadas", kcal: 150, protein: 7, carbs: 28, fats: 2, group: "Cereales" },
-  { id: "chicken", name: "Pechuga de pollo", serving: "150 g", kcal: 248, protein: 47, carbs: 0, fats: 5, group: "Proteínas" },
-  { id: "rice", name: "Arroz integral cocido", serving: "180 g", kcal: 200, protein: 5, carbs: 42, fats: 2, group: "Cereales" },
-  { id: "beef", name: "Carne magra", serving: "150 g", kcal: 300, protein: 39, carbs: 0, fats: 16, group: "Proteínas" },
-  { id: "lentils", name: "Lentejas cocidas", serving: "200 g", kcal: 232, protein: 18, carbs: 40, fats: 1, group: "Legumbres" },
-  { id: "potato", name: "Papa al horno", serving: "250 g", kcal: 220, protein: 5, carbs: 50, fats: 0, group: "Verduras" },
-  { id: "avocado", name: "Palta", serving: "100 g", kcal: 160, protein: 2, carbs: 9, fats: 15, group: "Grasas" },
-  { id: "oliveoil", name: "Aceite de oliva", serving: "1 cucharada", kcal: 119, protein: 0, carbs: 0, fats: 14, group: "Grasas" },
-  { id: "nuts", name: "Nueces", serving: "30 g", kcal: 196, protein: 5, carbs: 4, fats: 20, group: "Grasas" },
-  { id: "apple", name: "Manzana", serving: "1 mediana", kcal: 95, protein: 1, carbs: 25, fats: 0, group: "Frutas" },
-  { id: "vegetables", name: "Vegetales variados", serving: "250 g", kcal: 90, protein: 5, carbs: 18, fats: 1, group: "Verduras" },
-  { id: "cottage", name: "Queso cottage", serving: "200 g", kcal: 196, protein: 24, carbs: 8, fats: 8, group: "Lácteos" },
-];
+export const foodCatalog: Food[] = dietFoodOptions.map((food) => ({
+  id: food.id,
+  name: food.name,
+  serving: `100 ${food.unit}`,
+  kcal: food.nutritionPer100.kcal,
+  protein: food.nutritionPer100.protein,
+  carbs: food.nutritionPer100.carbs,
+  fats: food.nutritionPer100.fat,
+  group: food.group,
+}));
 
 export type WeightEntry = { id: string; date: string; weight: number; note?: string };
 export type DailyDietLog = { date: string; completedMeals: string[]; comment: string };
