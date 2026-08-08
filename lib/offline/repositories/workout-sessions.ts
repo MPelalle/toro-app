@@ -178,17 +178,6 @@ export async function getActiveLocalWorkoutSession(routineId: string) {
   });
 }
 
-export async function getCurrentActiveLocalWorkoutSession() {
-  const userId = await getActiveOfflineUserId();
-  return inTransaction([STORES.workoutSessions, STORES.workoutSessionExercises, STORES.workoutSets], "readonly", async (transaction) => {
-    const sessions = await getAllFromIndex<WorkoutSessionRow>(transaction, STORES.workoutSessions, "by-user-id", userId);
-    const active = sessions
-      .filter((session) => !session.deletedAt && isCurrentWorkoutSession(session))
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-    return active ? hydrateSession(transaction, active) : undefined;
-  });
-}
-
 export async function updateLocalWorkoutSessionSyncStatus(sessionId: string, status: SyncStatus, lastSyncedAt: string | null) {
   await inTransaction([STORES.workoutSessions, STORES.workoutSessionExercises, STORES.workoutSets], "readwrite", async (transaction) => {
     const sessions = transaction.objectStore(STORES.workoutSessions);

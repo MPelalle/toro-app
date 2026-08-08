@@ -2,7 +2,6 @@
 
 import { CircleDot, Flame, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getCurrentActiveWorkoutSession } from "@/lib/offline";
 import ToroSidebar from "./SideBar";
 
 interface ToroHeaderProps {
@@ -32,21 +31,10 @@ export default function ToroHeader({ onMenuClick, stats }: ToroHeaderProps) {
   }, []);
 
   useEffect(() => {
-    let mounted = true;
-    const refreshWorkoutStatus = () => {
-      void getCurrentActiveWorkoutSession()
-        .then((session) => { if (mounted) setWorkoutInProgress(Boolean(session)); })
-        .catch(() => { if (mounted) setWorkoutInProgress(false); });
-    };
-    refreshWorkoutStatus();
-    const interval = window.setInterval(refreshWorkoutStatus, 30_000);
-    window.addEventListener("toro-sync-change", refreshWorkoutStatus);
-    window.addEventListener("focus", refreshWorkoutStatus);
+    const updateWorkoutStatus = (event: Event) => setWorkoutInProgress(Boolean((event as CustomEvent<{ active?: boolean }>).detail?.active));
+    window.addEventListener("toro-workout-status-change", updateWorkoutStatus);
     return () => {
-      mounted = false;
-      window.clearInterval(interval);
-      window.removeEventListener("toro-sync-change", refreshWorkoutStatus);
-      window.removeEventListener("focus", refreshWorkoutStatus);
+      window.removeEventListener("toro-workout-status-change", updateWorkoutStatus);
     };
   }, []);
 
