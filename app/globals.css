@@ -290,6 +290,26 @@ main[class*="bg-[#090a08]"], main[class*="bg-[#080908]"], main[class*="bg-[#0708
    only for the devices most affected by it. Larger screens and pointer devices
    retain the original visual treatment. */
 @media (max-width: 767px) and (hover: none) and (pointer: coarse) {
+  /* Performance mode for mid- and low-range touch devices. Full-screen
+     backdrop filters, large blurred layers and dynamic shadows are some of
+     the most expensive effects during scrolling and opening navigation. */
+  [class*="backdrop-blur"],
+  [class*="backdrop-saturate"] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  [class*="shadow-["] {
+    box-shadow: none !important;
+  }
+
+  .toro-ambient__aurora,
+  .toro-ambient__wave,
+  .toro-ambient__grain,
+  .toro-sidebar-glow {
+    display: none;
+  }
+
   .toro-ambient__aurora {
     filter: blur(58px);
   }

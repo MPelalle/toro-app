@@ -184,6 +184,7 @@ export default function ToroSidebar({
                 w-72
                 rounded-full
                 bg-[#B7FF00]/9
+                toro-sidebar-glow
                 blur-[90px]
               "
             />
@@ -199,6 +200,7 @@ export default function ToroSidebar({
                 w-80
                 rounded-full
                 bg-[#B7FF00]/[0.07]
+                toro-sidebar-glow
                 blur-[100px]
               "
             />
@@ -216,6 +218,7 @@ export default function ToroSidebar({
                 rounded-full
                 bg-white
                 opacity-[0.04]
+                toro-sidebar-glow
                 blur-[140px]
               "
             />
