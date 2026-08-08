@@ -5,13 +5,16 @@ import { useRouter } from "next/navigation";
 import { Clock3, LogOut, Save, Sparkles, Target, Trash2 } from "lucide-react";
 import { clearOfflineUser, syncPendingSessions, unsyncedSyncCount } from "@/lib/offline";
 import { deleteAccount, updateProfile } from "./actions";
+import { BadgeShowcase, UserBadgeStrip } from "@/components/badges/UserBadges";
+import type { UserBadge } from "@/lib/badges";
 
 type UserPanelProps = {
   user: { name: string; email: string; createdAt: string };
+  badges: UserBadge[];
   stats: { logins: number; seconds: number; habitCompletions: number; dietLogs: number };
 };
 
-export default function UserPanel({ user, stats }: UserPanelProps) {
+export default function UserPanel({ user, badges, stats }: UserPanelProps) {
   const router = useRouter();
   const [logoutError, setLogoutError] = useState("");
   const [loggingOut, setLoggingOut] = useState(false);
@@ -50,7 +53,8 @@ export default function UserPanel({ user, stats }: UserPanelProps) {
     <div className="pointer-events-none absolute -right-24 top-20 h-80 w-80 rounded-full bg-sky-400/9 blur-3xl toro-breathe" />
     <div className="pointer-events-none absolute -left-24 top-128 h-72 w-72 rounded-full bg-fuchsia-500/[.07] blur-3xl toro-breathe-reverse" />
     <div className="relative mx-auto max-w-4xl">
-      <header><p className="text-[10px] font-bold tracking-[.22em] text-[#b7ff00]/70">TU ESPACIO</p><h1 className="mt-2 text-4xl font-semibold tracking-[-.06em]">Perfil y progreso.</h1><p className="mt-2 text-sm text-white/40">Tu información, tu evolución y el control de tu cuenta.</p></header>
+      <header><p className="text-[10px] font-bold tracking-[.22em] text-[#b7ff00]/70">TU ESPACIO</p><div className="mt-2 flex flex-wrap items-center gap-3"><h1 className="text-4xl font-semibold tracking-[-.06em]">{user.name}</h1><UserBadgeStrip badges={badges} size="md" /></div><p className="mt-2 text-sm text-white/40">Perfil, progreso e insignias desbloqueadas.</p></header>
+      <BadgeShowcase badges={badges} />
       <div className="mt-7 grid gap-6 lg:grid-cols-[1fr_.8fr]">
         <form action={action} className="rounded-[28px] border border-white/8 bg-[#10110e]/95 p-5 sm:p-7">
           <p className="text-[10px] font-bold tracking-[.18em] text-[#b7ff00]/70">PERFIL</p><p className="mt-2 text-sm leading-6 text-white/40">Actualizá la información básica de tu cuenta.</p>

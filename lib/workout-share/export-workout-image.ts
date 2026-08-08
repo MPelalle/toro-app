@@ -3,6 +3,7 @@
 import { calculatePersonalRecords, calculateWorkoutDuration, calculateWorkoutVolume } from "@/lib/workout-share/calculations";
 import { formatExercisePerformance } from "@/lib/workout-share/format-exercise-performance";
 import type { CompletedWorkoutShareData } from "@/types/workout-share";
+import type { UserBadge } from "@/lib/badges";
 
 const WIDTH = 1080;
 const CARD_WIDTH = WIDTH;
@@ -45,6 +46,61 @@ function drawRule(context: CanvasRenderingContext2D, x1: number, x2: number, y: 
   context.restore();
 }
 
+const shareBadgeColors: Record<UserBadge["tier"], string> = {
+  0: "#667085",
+  1: "#d18a48",
+  2: "#cbd5e1",
+  3: "#f4c95d",
+  4: "#c084fc",
+};
+
+function drawShareBadge(context: CanvasRenderingContext2D, x: number, y: number, badge: UserBadge) {
+  const size = badge.tier === 4 ? 30 : 26;
+  const centerX = x + size / 2;
+  const centerY = y + size / 2;
+  const radius = size / 2;
+  context.save();
+  context.shadowColor = badge.tier === 4 ? "rgba(192,132,252,.8)" : "rgba(0,0,0,.7)";
+  context.shadowBlur = badge.tier === 4 ? 14 : 6;
+  context.fillStyle = shareBadgeColors[badge.tier];
+  context.beginPath();
+  if (badge.id === "streak") {
+    context.moveTo(centerX, centerY - radius);
+    context.bezierCurveTo(centerX + radius * 0.92, centerY - radius * 0.42, centerX + radius * 0.78, centerY + radius * 0.48, centerX, centerY + radius);
+    context.bezierCurveTo(centerX - radius * 0.9, centerY + radius * 0.35, centerX - radius * 0.78, centerY - radius * 0.38, centerX, centerY - radius);
+  } else if (badge.id === "routine") {
+    context.roundRect(centerX - radius * 0.7, centerY - radius * 0.5, radius * 1.4, radius, radius * 0.18);
+    context.rect(centerX - radius, centerY - radius * 0.3, radius * 0.24, radius * 0.6);
+    context.rect(centerX + radius * 0.76, centerY - radius * 0.3, radius * 0.24, radius * 0.6);
+  } else if (badge.id === "diet") {
+    context.moveTo(centerX - radius, centerY);
+    context.quadraticCurveTo(centerX, centerY - radius * 1.15, centerX + radius, centerY);
+    context.quadraticCurveTo(centerX, centerY + radius * 1.15, centerX - radius, centerY);
+  } else {
+    for (let point = 0; point < 16; point += 1) {
+      const angle = Math.PI / 8 * point - Math.PI / 2;
+      const pointRadius = point % 2 === 0 ? radius : radius * 0.78;
+      const pointX = centerX + Math.cos(angle) * pointRadius;
+      const pointY = centerY + Math.sin(angle) * pointRadius;
+      if (point === 0) context.moveTo(pointX, pointY);
+      else context.lineTo(pointX, pointY);
+    }
+  }
+  context.closePath();
+  context.fill();
+  context.strokeStyle = "rgba(255,255,255,.85)";
+  context.lineWidth = 1;
+  context.stroke();
+  context.shadowColor = "transparent";
+  context.fillStyle = "#10110e";
+  context.font = `900 ${badge.tier === 4 ? 13 : 11}px Inter, Arial, sans-serif`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(badge.abbreviation, centerX, centerY + 1);
+  context.restore();
+  return x + size + 9;
+}
+
 async function createPng(workout: CompletedWorkoutShareData) {
   await document.fonts?.ready;
 
@@ -52,7 +108,7 @@ async function createPng(workout: CompletedWorkoutShareData) {
   const visibleExercises = exercises.slice(0, 8);
   const extraExercises = exercises.length - visibleExercises.length;
   const records = calculatePersonalRecords(workout.exercises);
-  const height = Math.max(740, 570 + visibleExercises.length * 58 + (extraExercises > 0 ? 40 : 0));
+  const height = Math.max(780, 600 + visibleExercises.length * 58 + (extraExercises > 0 ? 40 : 0));
   const canvas = document.createElement("canvas");
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
   canvas.width = WIDTH * ratio;
@@ -88,9 +144,18 @@ async function createPng(workout: CompletedWorkoutShareData) {
   context.letterSpacing = "5px";
   context.fillText("BUILD YOUR BEST VERSION", contentX, cardY + 108);
   context.letterSpacing = "0px";
-  drawRule(context, contentX, contentRight, cardY + 137);
+  if (workout.athlete) {
+    const featuredBadges = workout.athlete.badges.filter((badge) => badge.unlocked).slice(0, 4);
+    context.fillStyle = "rgba(255,255,255,.82)";
+    context.font = "800 16px Inter, Arial, sans-serif";
+    const athleteName = fitText(context, workout.athlete.displayName.toUpperCase(), 500);
+    context.fillText(athleteName, contentX, cardY + 141);
+    let badgeX = contentX + context.measureText(athleteName).width + 22;
+    for (const badge of featuredBadges) badgeX = drawShareBadge(context, badgeX, cardY + 124, badge);
+  }
+  drawRule(context, contentX, contentRight, cardY + 165);
 
-  let y = cardY + 180;
+  let y = cardY + 208;
   context.fillStyle = "rgba(255,255,255,.75)";
   context.font = "700 16px Inter, Arial, sans-serif";
   context.letterSpacing = "4px";

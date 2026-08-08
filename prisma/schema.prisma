@@ -49,6 +49,7 @@ model User {
   routines RoutinePlan[]
   workoutSessions WorkoutSession[]
   dailyVisits AppDailyVisit[]
+  badgeAwards UserBadgeAward[]
   authTokens AuthToken[]
   sessions Session[]
 
@@ -64,6 +65,19 @@ model AppDailyVisit {
 
   @@id([userId, date])
   @@map("app_daily_visits")
+}
+
+model UserBadgeAward {
+  userId    String   @map("user_id") @db.Uuid
+  badgeId   String   @map("badge_id")
+  tier      Int
+  awardedAt DateTime @default(now()) @map("awarded_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, badgeId])
+  @@map("user_badge_awards")
 }
 
 model DietPlan {
