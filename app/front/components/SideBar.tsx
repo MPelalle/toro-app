@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Award,
   ChevronRight,
@@ -111,26 +111,24 @@ export default function ToroSidebar({
   }
 
   return (
-    <AnimatePresence>
-      {open && (
-        <>
+    <>
           {/* ========================================================= */}
           {/* BACKDROP                                                   */}
           {/* ========================================================= */}
 
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.45 }}
+            initial={false}
+            animate={{ opacity: open ? 1 : 0 }}
+            transition={{ duration: 0.16 }}
             onClick={onClose}
             className="
               fixed
               inset-0
               z-90
-              bg-black/60
-              backdrop-blur-2xl
+              bg-black/70
+              transition-[visibility]
             "
+            style={{ visibility: open ? "visible" : "hidden", pointerEvents: open ? "auto" : "none" }}
           />
 
           {/* ========================================================= */}
@@ -138,26 +136,12 @@ export default function ToroSidebar({
           {/* ========================================================= */}
 
           <motion.aside
-            initial={{
-              x: "-105%",
-              scale: 0.97,
-              opacity: 0,
-            }}
-            animate={{
-              x: 0,
-              scale: 1,
-              opacity: 1,
-            }}
-            exit={{
-              x: "-105%",
-              scale: 0.97,
-              opacity: 0,
-            }}
+            initial={false}
+            animate={open ? { x: 0, scale: 1, opacity: 1 } : { x: "-105%", scale: 0.98, opacity: 0 }}
             transition={{
-              type: "spring",
-              stiffness: 300,
-              damping: 32,
-              mass: 0.8,
+              type: "tween",
+              duration: 0.2,
+              ease: "easeOut",
             }}
             className="
               fixed
@@ -177,30 +161,20 @@ export default function ToroSidebar({
               border
               border-white/10
 
-              bg-[#0c0d0d]/75
+              bg-[#0c0d0d]/95
 
               shadow-[0_30px_120px_rgba(0,0,0,0.75)]
 
-              backdrop-blur-2xl
             "
+            aria-hidden={!open}
+            style={{ pointerEvents: open ? "auto" : "none" }}
           >
             {/* ======================================================= */}
             {/* LIVING BACKGROUND                                        */}
             {/* ======================================================= */}
 
             {/* Main ambient glow */}
-            <motion.div
-              animate={{
-                x: [-20, 25, -10, -20],
-                y: [-10, 25, 5, -10],
-                scale: [1, 1.15, 0.95, 1],
-                opacity: [0.55, 0.75, 0.5, 0.55],
-              }}
-              transition={{
-                duration: 14,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
+            <div
               className="
                 pointer-events-none
                 absolute
@@ -215,18 +189,7 @@ export default function ToroSidebar({
             />
 
             {/* Secondary glow */}
-            <motion.div
-              animate={{
-                x: [20, -20, 30, 20],
-                y: [10, -30, 20, 10],
-                scale: [1, 0.9, 1.15, 1],
-                opacity: [0.25, 0.4, 0.2, 0.25],
-              }}
-              transition={{
-                duration: 18,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
+            <div
               className="
                 pointer-events-none
                 absolute
@@ -241,16 +204,7 @@ export default function ToroSidebar({
             />
 
             {/* Soft white ambient light */}
-            <motion.div
-              animate={{
-                opacity: [0.02, 0.06, 0.02],
-                scale: [1, 1.1, 1],
-              }}
-              transition={{
-                duration: 9,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
+            <div
               className="
                 pointer-events-none
                 absolute
@@ -269,15 +223,7 @@ export default function ToroSidebar({
             {/* TOP EDGE LIGHT                                           */}
             {/* ======================================================= */}
 
-            <motion.div
-              animate={{
-                opacity: [0.25, 0.6, 0.25],
-              }}
-              transition={{
-                duration: 5,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
+            <div
               className="
                 pointer-events-none
                 absolute
@@ -519,15 +465,7 @@ export default function ToroSidebar({
                                 strokeWidth={1.8}
                               />
                             ) : (
-                              <motion.div
-                                animate={{
-                                  scale: [1, 1.15, 1],
-                                }}
-                                transition={{
-                                  duration: 2.5,
-                                  repeat: Infinity,
-                                  ease: "easeInOut",
-                                }}
+                              <div
                                 className="
                                   h-2
                                   w-2
@@ -703,17 +641,7 @@ export default function ToroSidebar({
                     hover:bg-[#B7FF00]/6
                   "
                 >
-                  <motion.div
-                    animate={{
-                      x: [-20, 20, -20],
-                      y: [0, 10, 0],
-                      opacity: [0.25, 0.4, 0.25],
-                    }}
-                    transition={{
-                      duration: 8,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    }}
+                  <div
                     className="
                       pointer-events-none
                       absolute
@@ -785,14 +713,7 @@ export default function ToroSidebar({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <motion.div
-                    animate={{
-                      opacity: [0.35, 1, 0.35],
-                    }}
-                    transition={{
-                      duration: 2.5,
-                      repeat: Infinity,
-                    }}
+                  <div
                     className="
                       h-1.5
                       w-1.5
@@ -808,8 +729,6 @@ export default function ToroSidebar({
               </div>
             </div>
           </motion.aside>
-        </>
-      )}
-    </AnimatePresence>
+    </>
   );
 }

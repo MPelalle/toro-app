@@ -126,10 +126,6 @@ export default function ToroBottomNav() {
             />
           </CenterButton>
 
-          <CenterButton href={routes.community} active={communityActive} label="Comunidad">
-            <UsersRound className="h-4.75 w-4.75" strokeWidth={communityActive ? 2.4 : 1.8} />
-          </CenterButton>
-
           <CenterButton href={routes.habits} active={habitsActive} label="Hábitos">
             <CheckCircle2
               className="h-4.75 w-4.75"
@@ -139,8 +135,15 @@ export default function ToroBottomNav() {
         </div>
 
         {/* =================================================
-            PROFILE (Flotante independiente)
+            COMMUNITY + PROFILE (Flotantes independientes)
         ================================================= */}
+        <SideButton href={routes.community} active={communityActive} label="Comunidad">
+          <UsersRound
+            className="h-5.25 w-5.25"
+            strokeWidth={communityActive ? 2.5 : 1.8}
+          />
+        </SideButton>
+
         <SideButton href={routes.profile} active={profileActive} label="Perfil">
           <User
             className="h-5.25 w-5.25"

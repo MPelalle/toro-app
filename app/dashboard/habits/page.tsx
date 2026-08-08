@@ -170,7 +170,6 @@ export default async function HabitsPage() {
       rounded-full
       bg-[#a3ff12]/4.5
       blur-[140px]
-      animate-[toro-breathe_14s_ease-in-out_infinite]
     "
   />
 
@@ -187,7 +186,6 @@ export default async function HabitsPage() {
       rounded-full
       bg-[#a3ff12]/2.5
       blur-[160px]
-      animate-[toro-breathe-reverse_18s_ease-in-out_infinite]
     "
   />
 
@@ -205,7 +203,6 @@ export default async function HabitsPage() {
       rounded-full
       bg-white/[0.012]
       blur-[150px]
-      animate-[toro-pulse_10s_ease-in-out_infinite]
     "
   />
 

@@ -3,7 +3,7 @@ import type { OfflineWorkoutSession } from "./offline/types";
 import { cacheRoutineRecord, cacheRoutineRecords, getCachedRoutineRecord, getCachedRoutineRecords } from "./offline/repositories/routines";
 import { failedOperationCount, pendingOperationCount, unsyncedOperationCount } from "./offline/repositories/operations";
 import { clearOfflineIdentity, setActiveOfflineIdentity, type OfflineIdentity } from "./offline/repositories/identity";
-import { createLocalWorkoutSession, getActiveLocalWorkoutSession, getLocalWorkoutSession, saveLocalWorkoutSession } from "./offline/repositories/workout-sessions";
+import { createLocalWorkoutSession, getActiveLocalWorkoutSession, getCurrentActiveLocalWorkoutSession, getLocalWorkoutSession, saveLocalWorkoutSession } from "./offline/repositories/workout-sessions";
 import { retryPendingOperationsManually, synchronizePendingWorkoutSessions } from "./offline/sync/workout-sessions";
 import { prepareOfflineTrainingData } from "./offline/bootstrap";
 
@@ -51,6 +51,10 @@ export async function getWorkoutSession(id: string) {
 
 export async function getActiveWorkoutSession(routineId: string) {
   return getActiveLocalWorkoutSession(routineId);
+}
+
+export async function getCurrentActiveWorkoutSession() {
+  return getCurrentActiveLocalWorkoutSession();
 }
 
 export async function saveWorkoutSession(session: OfflineWorkoutSession) {

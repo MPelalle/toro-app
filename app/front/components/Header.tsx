@@ -2,6 +2,7 @@
 
 import { CircleDot, Flame, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
+import { getCurrentActiveWorkoutSession } from "@/lib/offline";
 import ToroSidebar from "./SideBar";
 
 interface ToroHeaderProps {
@@ -12,6 +13,7 @@ interface ToroHeaderProps {
 export default function ToroHeader({ onMenuClick, stats }: ToroHeaderProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentStats, setCurrentStats] = useState(stats);
+  const [workoutInProgress, setWorkoutInProgress] = useState(false);
 
   useEffect(() => {
     const refresh = () => {
@@ -26,6 +28,25 @@ export default function ToroHeader({ onMenuClick, stats }: ToroHeaderProps) {
     return () => {
       window.clearInterval(interval);
       window.removeEventListener("focus", refresh);
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const refreshWorkoutStatus = () => {
+      void getCurrentActiveWorkoutSession()
+        .then((session) => { if (mounted) setWorkoutInProgress(Boolean(session)); })
+        .catch(() => { if (mounted) setWorkoutInProgress(false); });
+    };
+    refreshWorkoutStatus();
+    const interval = window.setInterval(refreshWorkoutStatus, 30_000);
+    window.addEventListener("toro-sync-change", refreshWorkoutStatus);
+    window.addEventListener("focus", refreshWorkoutStatus);
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+      window.removeEventListener("toro-sync-change", refreshWorkoutStatus);
+      window.removeEventListener("focus", refreshWorkoutStatus);
     };
   }, []);
 
@@ -45,9 +66,14 @@ export default function ToroHeader({ onMenuClick, stats }: ToroHeaderProps) {
             <Menu size={24} strokeWidth={2} />
           </button>
 
-          <div className="absolute left-1/2 -translate-x-1/2"><div className="h-12 w-12" /></div>
+          <div className="absolute left-1/2 -translate-x-1/2">
+            {workoutInProgress && <div role="status" aria-label="Entrenamiento en progreso" className="flex items-center gap-2 whitespace-nowrap rounded-full border border-red-400/20 bg-red-400/[.08] px-3 py-2 text-[10px] font-bold tracking-[.12em] text-red-200">
+              <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-red-400" /></span>
+              ENTRENAMIENTO EN PROGRESO
+            </div>}
+          </div>
 
-          <div className="ml-auto flex items-center">
+          <div className={`ml-auto ${workoutInProgress ? "hidden sm:flex" : "flex"} items-center`}>
             <div className="flex h-12 items-center gap-4 rounded-full border border-white/[0.07] bg-white/4.5 px-4 text-sm font-semibold text-white">
               <span className="inline-flex items-center gap-1.5" title="Racha de ingresos diarios">
                 <Flame size={19} className="text-orange-400" fill="currentColor" />
