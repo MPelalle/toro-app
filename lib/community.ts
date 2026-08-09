@@ -1,5 +1,6 @@
 import "server-only";
 
+import { appCalendarDate, appDateKey, storedDateKey } from "@/lib/app-date";
 import { getPrisma } from "@/lib/prisma";
 import { ACTIVE_WORKOUT_WINDOW_MS, presenceStatus } from "@/lib/presence";
 
@@ -152,12 +153,65 @@ export async function createSharedRoutine(userId: string, sourceRoutineId: strin
     return tx.routinePlan.create({
       data: {
         userId, updatedById: userId, name: routineName, type: source.type, kind: "SHARED", days: source.days === null ? [] : source.days,
-        exercises: { create: source.exercises.map((exercise) => ({ position: exercise.position, name: exercise.name, muscle: exercise.muscle, sets: exercise.sets, reps: exercise.reps, weight: exercise.weight, technique: exercise.technique, trainingDay: exercise.trainingDay, completed: exercise.completed, actualReps: exercise.actualReps, note: exercise.note })) },
+        exercises: { create: source.exercises.map((exercise) => ({ position: exercise.position, name: exercise.name, muscle: exercise.muscle, sets: exercise.sets, reps: exercise.reps, weight: exercise.weight, technique: exercise.technique, trainingDay: exercise.trainingDay, completed: null, actualReps: null, note: null })) },
         members: { create: [{ userId, role: "OWNER" }, ...memberIds.map((memberId) => ({ userId: memberId, role: "MEMBER" as const }))] },
       },
       include: { members: { include: { user: { select: { nickname: true, name: true } } } } },
     });
   });
+}
+
+/**
+ * Turns a program someone shared with the current user into an independent
+ * personal routine. The copy deliberately starts without completion data, so
+ * a member never inherits another athlete's check-ins or notes.
+ */
+export async function copySharedRoutineToPersonal(userId: string, sourceRoutineId: string) {
+  const prisma = getPrisma();
+  return prisma.$transaction(async (tx) => {
+    const source = await tx.routinePlan.findFirst({
+      where: { id: sourceRoutineId, kind: "SHARED", members: { some: { userId } } },
+      include: { exercises: { orderBy: { position: "asc" } } },
+    });
+    if (!source) throw new Error("No tenés acceso a esta rutina compartida.");
+    if (!source.exercises.length) throw new Error("Esta rutina no tiene ejercicios para copiar.");
+
+    const personalCount = await tx.routinePlan.count({ where: { userId, kind: "PERSONAL" } });
+    if (personalCount >= 5) throw new Error("Ya alcanzaste el límite de 5 rutinas personales.");
+
+    const copySuffix = " · copia";
+    const sourceName = source.name.trim().slice(0, 80 - copySuffix.length);
+    const name = `${sourceName || "Rutina compartida"}${copySuffix}`;
+
+    return tx.routinePlan.create({
+      data: {
+        userId,
+        updatedById: userId,
+        name,
+        type: source.type,
+        kind: "PERSONAL",
+        days: source.days === null ? [] : source.days,
+        // A copy should never take over the routine the athlete is already using.
+        active: false,
+        exercises: {
+          create: source.exercises.map((exercise) => ({
+            position: exercise.position,
+            name: exercise.name,
+            muscle: exercise.muscle,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            weight: exercise.weight,
+            technique: exercise.technique,
+            trainingDay: exercise.trainingDay,
+            completed: null,
+            actualReps: null,
+            note: null,
+          })),
+        },
+      },
+      select: { id: true, name: true, active: true },
+    });
+  }, { isolationLevel: "Serializable" });
 }
 
 export async function createSharedDiet(userId: string, sourceDietId: string, friendIds: string[], name?: string) {
@@ -186,16 +240,19 @@ export async function listSharedDiets(userId: string) {
 export async function leaveSharedRoutine(userId: string, routineId: string) {
   const prisma = getPrisma();
   return prisma.$transaction(async (tx) => {
-    const routine = await tx.routinePlan.findFirst({ where: { id: routineId, kind: "SHARED", members: { some: { userId } } }, select: { id: true } });
+    const routine = await tx.routinePlan.findFirst({ where: { id: routineId, kind: "SHARED", members: { some: { userId } } }, select: { id: true, userId: true } });
     if (!routine) throw new Error("Rutina compartida no encontrada.");
+    if (routine.userId === userId) throw new Error("Quien creó la rutina no puede abandonarla. Eliminá o reasigná el programa desde su administración.");
     await tx.routineMember.delete({ where: { routineId_userId: { routineId, userId } } });
     const left = await tx.routineMember.count({ where: { routineId } });
     if (!left) await tx.routinePlan.delete({ where: { id: routineId } });
   });
 }
 
-function weekStart() {
-  const date = new Date(); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() - ((date.getDay() + 6) % 7)); return date;
+function weekStartKey(value = new Date()) {
+  const date = appCalendarDate(value);
+  date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+  return storedDateKey(date);
 }
 
 export async function getSharedRoutineDashboard(userId: string, routineId: string) {
@@ -208,14 +265,17 @@ export async function getSharedRoutineDashboard(userId: string, routineId: strin
     orderBy: { finishedAt: "asc" },
     select: { id: true, userId: true, status: true, finishedAt: true, updatedAt: true, exercises: { select: { name: true, sets: { select: { completed: true, weight: true, reps: true } } } } },
   });
-  const since = weekStart();
+  const currentWeekStart = weekStartKey();
+  const previousWeekStart = weekStartKey(appCalendarDate(new Date(Date.now() - 7 * 86_400_000)));
   const metrics = new Map(memberIds.map((id) => [id, { sessions: 0, volume: 0, sets: 0, prs: 0 }]));
   const progress = new Map<string, Map<string, { current: number; previous: number }>>();
   const personalBest = new Map<string, Map<string, number>>();
   const activity: Array<{ id: string; userId: string; name: string; nickname: string | null; avatarUrl: string | null; date: string; text: string }> = [];
   for (const session of sessions) {
     const at = session.finishedAt || session.updatedAt;
-    const currentWeek = at >= since;
+    const sessionDay = appDateKey(at);
+    const currentWeek = sessionDay >= currentWeekStart;
+    const previousWeek = sessionDay >= previousWeekStart && sessionDay < currentWeekStart;
     const metric = metrics.get(session.userId)!;
     if (currentWeek) metric.sessions += 1;
     let sessionVolume = 0; let completedSets = 0; let sessionPrs = 0;
@@ -232,7 +292,8 @@ export async function getSharedRoutineDashboard(userId: string, routineId: strin
       personalBest.set(session.userId, bests);
       const map = progress.get(key) || new Map<string, { current: number; previous: number }>();
       const values = map.get(session.userId) || { current: 0, previous: 0 };
-      if (currentWeek) values.current = Math.max(values.current, best); else values.previous = Math.max(values.previous, best);
+      if (currentWeek) values.current = Math.max(values.current, best);
+      else if (previousWeek) values.previous = Math.max(values.previous, best);
       map.set(session.userId, values); progress.set(key, map);
     }
     if (currentWeek) { metric.volume += sessionVolume; metric.sets += completedSets; metric.prs += sessionPrs; }

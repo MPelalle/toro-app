@@ -1,4 +1,5 @@
 import type { Diet, DietGoal, DietMeal, Sex } from "@/lib/diet-types";
+import { appDateKey } from "@/lib/app-date";
 
 export const goalLabels: Record<DietGoal, string> = {
   lose: "Bajar de peso",
@@ -64,4 +65,4 @@ export function saveDiets(diets: Diet[]) {
   localStorage.setItem(dietStorageKey, JSON.stringify(diets));
 }
 
-export function today() { return new Date().toISOString().slice(0, 10); }
+export function today() { return appDateKey(); }

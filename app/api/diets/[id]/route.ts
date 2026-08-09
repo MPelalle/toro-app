@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { getCurrentUser } from "@/lib/auth";
+import { storedDateKey } from "@/lib/app-date";
 import { getPrisma } from "@/lib/prisma";
 import { hasTrustedOrigin, isUuid, originError } from "@/lib/security";
 
-const key = (date: Date) => date.toISOString().slice(0, 10);
+const key = storedDateKey;
 const includeFor = (userId: string) => ({ meals: { orderBy: { position: "asc" as const } }, weightEntries: { where: { userId }, orderBy: { date: "asc" as const } }, dailyLogs: { where: { userId }, orderBy: { date: "asc" as const } }, members: { select: { userId: true } } });
 function serialize(plan: any, viewerId: string) { return { ...plan, createdAt: plan.createdAt.toISOString(), canEdit: plan.userId === viewerId, meals: plan.meals.map((meal: any) => ({ ...meal, foods: Array.isArray(meal.foods) ? meal.foods : [] })), weightHistory: plan.weightEntries.map((item: any) => ({ ...item, date: key(item.date) })), dailyLogs: plan.dailyLogs.map((item: any) => ({ date: key(item.date), completedMeals: Array.isArray(item.completedMealIds) ? item.completedMealIds : [], comment: item.comment || "" })) }; }
 async function accessible(id: string) { const user = await getCurrentUser(); if (!user) return null; const plan = await getPrisma().dietPlan.findFirst({ where: { id, OR: [{ userId: user.id, kind: "PERSONAL" }, { kind: "SHARED", members: { some: { userId: user.id } } }] }, include: includeFor(user.id) }); return { user, plan }; }

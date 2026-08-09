@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { Check } from "lucide-react";
+import { appDateKey } from "@/lib/app-date";
 import { toggleHabitCheckIn } from "./actions";
 
 type Props = {
@@ -14,7 +15,7 @@ type Props = {
 
 export function CheckInButton({ id, status, done, date, compact = false }: Props) {
   const [pending, startTransition] = useTransition();
-  const completedAt = date || new Date().toISOString().slice(0, 10);
+  const completedAt = date || appDateKey();
 
   return (
     <button

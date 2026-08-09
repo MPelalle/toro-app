@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
+import { appDateKey, dateAtNoonUTC } from "@/lib/app-date";
 import { getPrisma } from "@/lib/prisma";
 import { hasTrustedOrigin, isUuid, isValidDateKey, originError } from "@/lib/security";
 
@@ -15,14 +16,14 @@ export async function POST(request: Request, ctx: RouteContext<"/api/diets/[id]/
   const completedMeals: string[] = Array.isArray(body?.completedMeals) ? body.completedMeals.map((meal: unknown) => String(meal)) : [];
   const comment = String(body?.comment || "").trim();
   const mealIds = new Set(diet.meals.map((meal) => meal.id));
-  const today = new Date().toISOString().slice(0, 10);
+  const today = appDateKey();
   if (!body || !isValidDateKey(date) || date > today || completedMeals.length > diet.meals.length || new Set(completedMeals).size !== completedMeals.length || completedMeals.some((mealId) => !mealIds.has(mealId)) || comment.length > 1000) {
     return Response.json({ error: "Registro inválido" }, { status: 400 });
   }
   const result = await getPrisma().dietDailyLog.upsert({
-    where: { dietId_userId_date: { dietId: id, userId: user.id, date: new Date(`${date}T12:00:00.000Z`) } },
+    where: { dietId_userId_date: { dietId: id, userId: user.id, date: dateAtNoonUTC(date) } },
     update: { completedMealIds: completedMeals, comment: comment || null },
-    create: { dietId: id, userId: user.id, date: new Date(`${date}T12:00:00.000Z`), completedMealIds: completedMeals, comment: comment || null },
+    create: { dietId: id, userId: user.id, date: dateAtNoonUTC(date), completedMealIds: completedMeals, comment: comment || null },
   });
   return Response.json({ date, completedMeals: Array.isArray(result.completedMealIds) ? result.completedMealIds : [], comment: result.comment || "" });
 }

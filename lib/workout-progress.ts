@@ -17,7 +17,7 @@ export type ExerciseProgress = {
 };
 
 function dateKey(value: Date | string) {
-  return new Date(value).toISOString().slice(0, 10);
+  return appDateKey(value);
 }
 
 function number(value: number | null) {
@@ -91,3 +91,4 @@ export function buildWorkoutProgress(sessions: ProgressSession[]) {
     })).sort((a, b) => b.estimatedOneRepMax - a.estimatedOneRepMax),
   };
 }
+import { appDateKey } from "@/lib/app-date";

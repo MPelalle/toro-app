@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { closeOfflineDatabase, inTransaction, openOfflineDatabase, requestResult } from "@/lib/offline/database";
-import { getActiveOfflineUserId, setActiveOfflineIdentity } from "@/lib/offline/repositories/identity";
+import { clearOfflineIdentity, getActiveOfflineUserId, setActiveOfflineIdentity } from "@/lib/offline/repositories/identity";
+import { hydrateRoutineHistory } from "@/lib/offline/bootstrap";
 import { getUnresolvedConflicts } from "@/lib/offline/repositories/conflicts";
 import { failedOperationCount, pendingOperationCount } from "@/lib/offline/repositories/operations";
-import { createLocalWorkoutSession, getActiveLocalWorkoutSession, getLocalWorkoutSession, saveLocalWorkoutSession } from "@/lib/offline/repositories/workout-sessions";
+import { createLocalWorkoutSession, getActiveLocalWorkoutSession, getLocalWorkoutSession, getRecentLocalWorkoutSessions, saveLocalWorkoutSession } from "@/lib/offline/repositories/workout-sessions";
 import { retryPendingOperationsManually, synchronizePendingWorkoutSessions } from "@/lib/offline/sync/workout-sessions";
 import { OFFLINE_DATABASE_NAME, OFFLINE_DATABASE_VERSION, STORES, type StoreName } from "@/lib/offline/schema";
 import type { Routine } from "@/lib/routines";
@@ -156,6 +157,47 @@ describe.sequential("persistencia offline de entrenamientos", () => {
     const finished = await getLocalWorkoutSession(session.id);
     expect(finished).toMatchObject({ status: "FINISHED", finishedAt, durationSeconds: 3_600, emotionalRating: 5, notes: "Buen entrenamiento" });
     expect(finished?.exercises[0].sets.every((set) => set.completed)).toBe(true);
+  });
+
+  it("recupera el historial terminado local para asistir la próxima sesión", async () => {
+    const first = await storedSession();
+    const second = await storedSession();
+    await saveLocalWorkoutSession({ ...first, status: "FINISHED", finishedAt: "2026-08-05T10:00:00.000Z", durationSeconds: 1_800 });
+    await saveLocalWorkoutSession({ ...second, status: "FINISHED", finishedAt: "2026-08-06T10:00:00.000Z", durationSeconds: 1_800 });
+
+    const history = await getRecentLocalWorkoutSessions(routine.id);
+
+    expect(history.map((session) => session.id)).toEqual([second.id, first.id]);
+    expect(history.every((session) => session.status === "FINISHED")).toBe(true);
+  });
+
+  it("hidrata el historial remoto solo después de fijar la identidad local", async () => {
+    const local = createLocalWorkoutSession(routine);
+    const remote = {
+      ...local,
+      status: "FINISHED" as const,
+      finishedAt: "2026-08-06T10:00:00.000Z",
+      durationSeconds: 1_800,
+      clientUpdatedAt: "2026-08-06T10:00:00.000Z",
+      updatedAt: "2026-08-06T10:00:00.000Z",
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === `/api/offline/routines/${routine.id}/history`) return Response.json({ recentSessions: [remote], downloadedAt: "2026-08-06T10:00:00.000Z" });
+      throw new Error(`Solicitud inesperada: ${input}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await clearOfflineIdentity(true);
+    await expect(hydrateRoutineHistory(routine.id)).resolves.toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await activate();
+    await hydrateRoutineHistory(routine.id);
+
+    expect((await getLocalWorkoutSession(remote.id))?.status).toBe("FINISHED");
+    expect((await getLocalWorkoutSession(remote.id))?.syncStatus).toBe("synced");
+    expect(await pendingOperationCount()).toBe(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("migra una base v1 a la versión actual sin descartar la rutina", async () => {

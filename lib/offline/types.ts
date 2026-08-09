@@ -22,6 +22,7 @@ export type LocalRoutine = SyncMetadata & {
   name: string;
   type: string;
   kind?: "PERSONAL" | "SHARED";
+  canEdit?: boolean;
   active: boolean;
 };
 

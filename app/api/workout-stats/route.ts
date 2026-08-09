@@ -1,20 +1,20 @@
 import { getCurrentUser } from "@/lib/auth";
+import { appCalendarDate, appDateKey, storedDateKey } from "@/lib/app-date";
 import { getPrisma } from "@/lib/prisma";
 import { isUuid } from "@/lib/security";
 
 type Point = { date: string; volume: number };
 
 function dateKey(value: Date) {
-  return value.toISOString().slice(0, 10);
+  return appDateKey(value);
 }
 
 function consecutiveTrainingDays(days: string[]) {
   const unique = new Set(days);
-  const cursor = new Date();
-  cursor.setUTCHours(12, 0, 0, 0);
-  if (!unique.has(dateKey(cursor))) cursor.setUTCDate(cursor.getUTCDate() - 1);
+  const cursor = appCalendarDate();
+  if (!unique.has(storedDateKey(cursor))) cursor.setUTCDate(cursor.getUTCDate() - 1);
   let streak = 0;
-  while (unique.has(dateKey(cursor))) {
+  while (unique.has(storedDateKey(cursor))) {
     streak += 1;
     cursor.setUTCDate(cursor.getUTCDate() - 1);
   }
@@ -50,9 +50,9 @@ export async function GET(request: Request) {
   });
   const exerciseMap = new Map<string, { name: string; muscle: string; bestWeight: number; estimatedOneRepMax: number; history: Point[] }>();
   const weeklyMuscles = new Map<string, number>();
-  const weekStart = new Date();
-  weekStart.setDate(weekStart.getDate() - 6);
-  weekStart.setHours(0, 0, 0, 0);
+  const weekStart = appCalendarDate();
+  weekStart.setUTCDate(weekStart.getUTCDate() - 6);
+  const weekStartKey = storedDateKey(weekStart);
 
   for (const session of sessions) {
     const finishedAt = session.finishedAt || session.updatedAt;
@@ -69,7 +69,7 @@ export async function GET(request: Request) {
         stats.estimatedOneRepMax = Math.max(stats.estimatedOneRepMax, (set.weight || 0) * (1 + (set.reps || 0) / 30));
       }
       exerciseMap.set(key, stats);
-      if (finishedAt >= weekStart) weeklyMuscles.set(exercise.muscle, (weeklyMuscles.get(exercise.muscle) || 0) + completed.length);
+      if (date >= weekStartKey) weeklyMuscles.set(exercise.muscle, (weeklyMuscles.get(exercise.muscle) || 0) + completed.length);
     }
   }
 

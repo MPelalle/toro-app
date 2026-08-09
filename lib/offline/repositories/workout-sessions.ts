@@ -178,6 +178,23 @@ export async function getActiveLocalWorkoutSession(routineId: string) {
   });
 }
 
+/**
+ * Historial local para las ayudas de progresión. Se limita para mantener la
+ * consulta rápida y funciona igual con sesiones aún pendientes de sincronizar.
+ */
+export async function getRecentLocalWorkoutSessions(routineId: string, limit = 16) {
+  const userId = await getActiveOfflineUserId();
+  const take = Math.max(0, Math.min(50, Math.floor(limit)));
+  return inTransaction([STORES.workoutSessions, STORES.workoutSessionExercises, STORES.workoutSets], "readonly", async (transaction) => {
+    const sessions = await getAllFromIndex<WorkoutSessionRow>(transaction, STORES.workoutSessions, "by-routine-id", routineId);
+    const recent = sessions
+      .filter((session) => session.userId === userId && !session.deletedAt && session.status === "FINISHED" && session.finishedAt)
+      .sort((left, right) => (right.finishedAt || right.updatedAt).localeCompare(left.finishedAt || left.updatedAt))
+      .slice(0, take);
+    return Promise.all(recent.map((session) => hydrateSession(transaction, session)));
+  });
+}
+
 export async function updateLocalWorkoutSessionSyncStatus(sessionId: string, status: SyncStatus, lastSyncedAt: string | null) {
   await inTransaction([STORES.workoutSessions, STORES.workoutSessionExercises, STORES.workoutSets], "readwrite", async (transaction) => {
     const sessions = transaction.objectStore(STORES.workoutSessions);

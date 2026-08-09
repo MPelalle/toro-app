@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { dateKey, getHabit, getHabitsUser, HabitDurationValue, HabitImportanceValue, HabitStatusValue } from "@/lib/habits";
+import { appDateKey, dateAtNoonUTC } from "@/lib/app-date";
+import { getHabit, getHabitsUser, HabitDurationValue, HabitImportanceValue, HabitStatusValue } from "@/lib/habits";
 import { getPrisma } from "@/lib/prisma";
 import { isValidDateKey } from "@/lib/security";
 
@@ -29,8 +30,8 @@ function readHabitForm(formData: FormData) {
 
 function getEndDate(startsAt: Date, durationValue: number, durationUnit: HabitDurationValue) {
   const endsAt = new Date(startsAt);
-  if (durationUnit === "DAYS") endsAt.setDate(endsAt.getDate() + durationValue);
-  else endsAt.setMonth(endsAt.getMonth() + durationValue);
+  if (durationUnit === "DAYS") endsAt.setUTCDate(endsAt.getUTCDate() + durationValue);
+  else endsAt.setUTCMonth(endsAt.getUTCMonth() + durationValue);
   return endsAt;
 }
 
@@ -38,7 +39,7 @@ export async function createHabit(formData: FormData) {
   const prisma = getPrisma();
   const user = await getHabitsUser();
   const values = readHabitForm(formData);
-  const startsAt = new Date();
+  const startsAt = dateAtNoonUTC(appDateKey());
   const habit = await prisma.habit.create({ data: { ...values, startsAt, endsAt: getEndDate(startsAt, values.durationValue, values.durationUnit), userId: user.id } });
   revalidatePath("/dashboard/habits");
   redirect(`/dashboard/habits/${habit.id}`);
@@ -68,11 +69,9 @@ export async function toggleHabitCheckIn(id: string, completedAt: string) {
   if (!isValidDateKey(completedAt)) throw new Error("Fecha no válida.");
 
   const date = new Date(`${completedAt}T12:00:00.000Z`);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const startsAt = new Date(habit.startsAt);
-  startsAt.setHours(0, 0, 0, 0);
-  if (dateKey(date) > dateKey(today) || dateKey(date) < dateKey(startsAt) || (habit.endsAt && dateKey(date) > dateKey(habit.endsAt))) {
+  const today = appDateKey();
+  const startsAt = appDateKey(habit.startsAt);
+  if (completedAt > today || completedAt < startsAt || (habit.endsAt && completedAt > appDateKey(habit.endsAt))) {
     throw new Error("El registro debe estar dentro del período activo del hábito.");
   }
   if (Number.isNaN(date.getTime())) throw new Error("Fecha no válida.");
@@ -84,6 +83,7 @@ export async function toggleHabitCheckIn(id: string, completedAt: string) {
 
   revalidatePath("/dashboard/habits");
   revalidatePath(`/dashboard/habits/${id}`);
+  revalidatePath("/dashboard");
 }
 
 export async function saveHabitDayComment(id: string, completedAt: string, comment: string) {
@@ -91,9 +91,8 @@ export async function saveHabitDayComment(id: string, completedAt: string, comme
   if (!habit) throw new Error("Hábito no encontrado.");
   if (!isValidDateKey(completedAt)) throw new Error("Fecha no válida.");
   const date = new Date(`${completedAt}T12:00:00.000Z`);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (dateKey(date) > dateKey(today) || dateKey(date) < dateKey(habit.startsAt) || (habit.endsAt && dateKey(date) > dateKey(habit.endsAt))) {
+  const today = appDateKey();
+  if (completedAt > today || completedAt < appDateKey(habit.startsAt) || (habit.endsAt && completedAt > appDateKey(habit.endsAt))) {
     throw new Error("El comentario debe estar dentro del período activo del hábito.");
   }
 

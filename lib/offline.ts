@@ -3,9 +3,9 @@ import type { OfflineWorkoutSession } from "./offline/types";
 import { cacheRoutineRecord, cacheRoutineRecords, getCachedRoutineRecord, getCachedRoutineRecords } from "./offline/repositories/routines";
 import { failedOperationCount, pendingOperationCount, unsyncedOperationCount } from "./offline/repositories/operations";
 import { clearOfflineIdentity, setActiveOfflineIdentity, type OfflineIdentity } from "./offline/repositories/identity";
-import { createLocalWorkoutSession, getActiveLocalWorkoutSession, getLocalWorkoutSession, saveLocalWorkoutSession } from "./offline/repositories/workout-sessions";
+import { createLocalWorkoutSession, getActiveLocalWorkoutSession, getLocalWorkoutSession, getRecentLocalWorkoutSessions, saveLocalWorkoutSession } from "./offline/repositories/workout-sessions";
 import { retryPendingOperationsManually, synchronizePendingWorkoutSessions } from "./offline/sync/workout-sessions";
-import { prepareOfflineTrainingData } from "./offline/bootstrap";
+import { hydrateRoutineHistory, isOfflineIdentityReady, prepareOfflineTrainingData } from "./offline/bootstrap";
 
 export type { OfflineWorkoutExercise, OfflineWorkoutSession, OfflineWorkoutSet as WorkoutSet } from "./offline/types";
 
@@ -57,6 +57,10 @@ export async function getActiveWorkoutSession(routineId: string) {
   return getActiveLocalWorkoutSession(routineId);
 }
 
+export async function getRecentWorkoutSessions(routineId: string, limit?: number) {
+  return getRecentLocalWorkoutSessions(routineId, limit);
+}
+
 export async function saveWorkoutSession(session: OfflineWorkoutSession) {
   const saved = await saveLocalWorkoutSession(session);
   emitSyncChange();
@@ -92,6 +96,14 @@ export async function retryFailedSyncOperations() {
 
 export async function prepareOfflineTraining() {
   return prepareOfflineTrainingData();
+}
+
+export async function isOfflineUserReady() {
+  return isOfflineIdentityReady();
+}
+
+export async function refreshRoutineHistory(routineId: string) {
+  return hydrateRoutineHistory(routineId);
 }
 
 export * from "./offline/types";
