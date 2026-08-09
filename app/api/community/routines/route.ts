@@ -14,8 +14,9 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "No autorizado" }, { status: 401 });
   const body = await request.json().catch(() => null);
-  const sourceRoutineId = String(body?.sourceRoutineId || ""); const friendId = String(body?.friendId || "");
-  if (!isUuid(sourceRoutineId) || !isUuid(friendId)) return Response.json({ error: "Elegí una rutina y un amigo válidos." }, { status: 400 });
-  try { const routine = await createSharedRoutine(user.id, sourceRoutineId, friendId, typeof body?.name === "string" ? body.name : undefined); return Response.json({ id: routine.id }, { status: 201 }); }
+  const sourceRoutineId = String(body?.sourceRoutineId || "");
+  const friendIds: string[] = Array.isArray(body?.friendIds) ? body.friendIds.map(String) : [];
+  if (!isUuid(sourceRoutineId) || !friendIds.length || friendIds.length > 5 || friendIds.some((id) => !isUuid(id))) return Response.json({ error: "Elegí una rutina y entre 1 y 5 alumnos válidos." }, { status: 400 });
+  try { const routine = await createSharedRoutine(user.id, sourceRoutineId, friendIds, typeof body?.name === "string" ? body.name : undefined); return Response.json({ id: routine.id }, { status: 201 }); }
   catch (error) { return Response.json({ error: error instanceof Error ? error.message : "No se pudo crear la rutina compartida." }, { status: 400 }); }
 }

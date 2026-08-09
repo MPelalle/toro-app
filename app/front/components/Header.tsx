@@ -1,8 +1,11 @@
 "use client";
 
 import { CircleDot, Flame, Menu } from "lucide-react";
-import { useEffect, useState } from "react";
-import ToroSidebar from "./SideBar";
+import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react";
+
+const ToroSidebar = dynamic(() => import("./SideBar"), { ssr: false });
+const SIDEBAR_EXIT_MS = 220;
 
 interface ToroHeaderProps {
   onMenuClick?: () => void;
@@ -11,22 +14,25 @@ interface ToroHeaderProps {
 
 export default function ToroHeader({ onMenuClick, stats }: ToroHeaderProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarMounted, setSidebarMounted] = useState(false);
   const [currentStats, setCurrentStats] = useState(stats);
   const [workoutInProgress, setWorkoutInProgress] = useState(false);
+  const sidebarCloseTimer = useRef<number | null>(null);
 
   useEffect(() => {
+    let mounted = true;
     const refresh = () => {
       void fetch("/api/dashboard/header-stats", { cache: "no-store" })
         .then((response) => response.ok ? response.json() : null)
-        .then((next) => { if (next) setCurrentStats(next); })
+        .then((next) => { if (mounted && next) setCurrentStats(next); })
         .catch(() => null);
     };
-    refresh();
-    const interval = window.setInterval(refresh, 60_000);
     window.addEventListener("focus", refresh);
+    window.addEventListener("toro-dashboard-stats-change", refresh);
     return () => {
-      window.clearInterval(interval);
+      mounted = false;
       window.removeEventListener("focus", refresh);
+      window.removeEventListener("toro-dashboard-stats-change", refresh);
     };
   }, []);
 
@@ -38,9 +44,27 @@ export default function ToroHeader({ onMenuClick, stats }: ToroHeaderProps) {
     };
   }, []);
 
+  useEffect(() => () => {
+    if (sidebarCloseTimer.current !== null) window.clearTimeout(sidebarCloseTimer.current);
+  }, []);
+
   const handleMenuClick = () => {
+    if (sidebarCloseTimer.current !== null) {
+      window.clearTimeout(sidebarCloseTimer.current);
+      sidebarCloseTimer.current = null;
+    }
+    setSidebarMounted(true);
     setSidebarOpen(true);
     onMenuClick?.();
+  };
+
+  const handleSidebarClose = () => {
+    setSidebarOpen(false);
+    if (sidebarCloseTimer.current !== null) window.clearTimeout(sidebarCloseTimer.current);
+    sidebarCloseTimer.current = window.setTimeout(() => {
+      setSidebarMounted(false);
+      sidebarCloseTimer.current = null;
+    }, SIDEBAR_EXIT_MS);
   };
 
   return (
@@ -76,7 +100,7 @@ export default function ToroHeader({ onMenuClick, stats }: ToroHeaderProps) {
         </div>
       </header>
 
-      <ToroSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      {sidebarMounted && <ToroSidebar open={sidebarOpen} onClose={handleSidebarClose} />}
     </>
   );
 }

@@ -5,13 +5,14 @@ import { hasTrustedOrigin, isUuid, originError } from "@/lib/security";
 
 const include = { exercises: { orderBy: { position: "asc" as const } } };
 const notFound = () => Response.json({ error: "Rutina no encontrada" }, { status: 404 });
-function serialize(plan: any) { return { ...plan, createdAt: plan.createdAt.toISOString(), days: Array.isArray(plan.days) ? plan.days : [], exercises: plan.exercises.map((exercise: any) => ({ ...exercise, note: exercise.note || "", completed: exercise.completed ?? null, actualReps: exercise.actualReps ?? null })) }; }
+function serialize(plan: any, viewerId?: string) { return { ...plan, createdAt: plan.createdAt.toISOString(), canEdit: viewerId ? plan.userId === viewerId : undefined, days: Array.isArray(plan.days) ? plan.days : [], exercises: plan.exercises.map((exercise: any) => ({ ...exercise, note: exercise.note || "", completed: exercise.completed ?? null, actualReps: exercise.actualReps ?? null })) }; }
 async function accessible(id: string) { const user = await getCurrentUser(); if (!user) return null; const plan = await getPrisma().routinePlan.findFirst({ where: { id, OR: [{ userId: user.id, kind: "PERSONAL" }, { kind: "SHARED", members: { some: { userId: user.id } } }] }, include: { ...include, members: { select: { userId: true } } } }); return { user, plan }; }
 
-export async function GET(_: Request, ctx: RouteContext<"/api/routines/[id]">) { const { id } = await ctx.params; if (!isUuid(id)) return notFound(); const result = await accessible(id); return result?.plan ? Response.json(serialize(result.plan)) : notFound(); }
+export async function GET(_: Request, ctx: RouteContext<"/api/routines/[id]">) { const { id } = await ctx.params; if (!isUuid(id)) return notFound(); const result = await accessible(id); return result?.plan && result.user ? Response.json(serialize(result.plan, result.user.id)) : notFound(); }
 export async function PATCH(request: Request, ctx: RouteContext<"/api/routines/[id]">) {
   if (!hasTrustedOrigin(request)) return originError();
   const { id } = await ctx.params; if (!isUuid(id)) return notFound(); const result = await accessible(id); const plan = result?.plan; const user = result?.user; if (!plan || !user) return notFound();
+  if (plan.kind === "SHARED" && plan.userId !== user.id) return Response.json({ error: "Solo quien creó la rutina puede modificarla." }, { status: 403 });
   const body = await request.json().catch(() => null); if (!body || typeof body !== "object") return Response.json({ error: "Datos inválidos" }, { status: 400 });
   const prisma = getPrisma();
   if (body.active === true) {

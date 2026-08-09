@@ -1,3 +1,5 @@
+import type { Food } from "@/lib/diet-types";
+
 export type FoodGoal = "deficit" | "mantenimiento" | "superavit";
 export type FoodPriceTier = "bajo" | "medio" | "alto";
 
@@ -1548,3 +1550,14 @@ export const dietFoodOptions = foodGroups.flatMap((group) =>
   })),
 );
 
+export const foodCatalog: Food[] = dietFoodOptions.map((food) => ({
+  id: food.id,
+  name: food.name,
+  serving: `100 ${food.unit}`,
+  unit: food.unit,
+  kcal: food.nutritionPer100.kcal,
+  protein: food.nutritionPer100.protein,
+  carbs: food.nutritionPer100.carbs,
+  fats: food.nutritionPer100.fat,
+  group: food.group,
+}));

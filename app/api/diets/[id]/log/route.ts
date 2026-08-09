@@ -8,7 +8,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/diets/[id]/
   if (!isUuid(id)) return Response.json({ error: "Plan no encontrado" }, { status: 404 });
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "No autorizado" }, { status: 401 });
-  const diet = await getPrisma().dietPlan.findFirst({ where: { id, userId: user.id }, include: { meals: { select: { id: true } } } });
+  const diet = await getPrisma().dietPlan.findFirst({ where: { id, OR: [{ userId: user.id, kind: "PERSONAL" }, { kind: "SHARED", members: { some: { userId: user.id } } }] }, include: { meals: { select: { id: true } } } });
   if (!diet) return Response.json({ error: "Plan no encontrado" }, { status: 404 });
   const body = await request.json().catch(() => null);
   const date = String(body?.date || "");
@@ -20,9 +20,9 @@ export async function POST(request: Request, ctx: RouteContext<"/api/diets/[id]/
     return Response.json({ error: "Registro inválido" }, { status: 400 });
   }
   const result = await getPrisma().dietDailyLog.upsert({
-    where: { dietId_date: { dietId: id, date: new Date(`${date}T12:00:00.000Z`) } },
+    where: { dietId_userId_date: { dietId: id, userId: user.id, date: new Date(`${date}T12:00:00.000Z`) } },
     update: { completedMealIds: completedMeals, comment: comment || null },
-    create: { dietId: id, date: new Date(`${date}T12:00:00.000Z`), completedMealIds: completedMeals, comment: comment || null },
+    create: { dietId: id, userId: user.id, date: new Date(`${date}T12:00:00.000Z`), completedMealIds: completedMeals, comment: comment || null },
   });
   return Response.json({ date, completedMeals: Array.isArray(result.completedMealIds) ? result.completedMealIds : [], comment: result.comment || "" });
 }

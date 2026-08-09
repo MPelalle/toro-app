@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getPrisma } from "@/lib/prisma";
+import { ACTIVE_WORKOUT_WINDOW_MS, presenceStatus } from "@/lib/presence";
 
 export const FRIEND_LIMIT = 5;
 export const NICKNAME_PATTERN = /^[A-Za-z0-9._]{3,20}$/;
@@ -27,15 +28,21 @@ export async function acceptedFriendCount(userId: string) {
 }
 
 export async function listFriends(userId: string) {
+  const prisma = getPrisma();
   const friendships = await getPrisma().friendship.findMany({
     where: friendshipWhere(userId),
-    include: { requester: { select: { id: true, name: true, nickname: true, avatarUrl: true } }, addressee: { select: { id: true, name: true, nickname: true, avatarUrl: true } } },
+    include: { requester: { select: { id: true, name: true, nickname: true, avatarUrl: true, lastActiveAt: true } }, addressee: { select: { id: true, name: true, nickname: true, avatarUrl: true, lastActiveAt: true } } },
     orderBy: { updatedAt: "desc" },
   });
-  return friendships.map((friendship) => {
+  const friends = friendships.map((friendship) => {
     const friend = friendship.requesterId === userId ? friendship.addressee : friendship.requester;
-    return { friendshipId: friendship.id, id: friend.id, name: friend.name || friend.nickname || "Atleta", nickname: friend.nickname, avatarUrl: friend.avatarUrl };
+    return { friendshipId: friendship.id, ...friend, name: friend.name || friend.nickname || "Atleta" };
   });
+  if (!friends.length) return [];
+  const activeSince = new Date(Date.now() - ACTIVE_WORKOUT_WINDOW_MS);
+  const activeSessions = await prisma.workoutSession.findMany({ where: { userId: { in: friends.map((friend) => friend.id) }, status: "IN_PROGRESS", startedAt: { gte: activeSince } }, select: { userId: true, startedAt: true } });
+  const sessionByUser = new Map(activeSessions.map((session) => [session.userId, session.startedAt]));
+  return friends.map(({ lastActiveAt, ...friend }) => ({ ...friend, presence: presenceStatus(lastActiveAt, sessionByUser.get(friend.id) || null) }));
 }
 
 export async function listPendingRequests(userId: string) {
@@ -126,26 +133,54 @@ export async function listSharedRoutines(userId: string) {
   });
 }
 
-export async function createSharedRoutine(userId: string, sourceRoutineId: string, friendId: string, name?: string) {
+async function ensureFriends(userId: string, friendIds: string[]) {
+  const uniqueIds = [...new Set(friendIds)];
+  if (!uniqueIds.length || uniqueIds.length > FRIEND_LIMIT || uniqueIds.some((id) => id === userId)) throw new Error("Elegí entre 1 y 5 alumnos válidos.");
+  const friendships = await getPrisma().friendship.findMany({ where: { status: "ACCEPTED", OR: uniqueIds.map((friendId) => ({ OR: [{ userAId: userId, userBId: friendId }, { userAId: friendId, userBId: userId }] })) }, select: { userAId: true, userBId: true } });
+  if (friendships.length !== uniqueIds.length) throw new Error("Solo podés asignar planes a tus amigos aceptados.");
+  return uniqueIds;
+}
+
+export async function createSharedRoutine(userId: string, sourceRoutineId: string, friendIds: string[], name?: string) {
   const prisma = getPrisma();
+  const memberIds = await ensureFriends(userId, friendIds);
   return prisma.$transaction(async (tx) => {
-    const [source, friendship] = await Promise.all([
-      tx.routinePlan.findFirst({ where: { id: sourceRoutineId, userId, kind: "PERSONAL" }, include: { exercises: { orderBy: { position: "asc" } } } }),
-      tx.friendship.findFirst({ where: { status: "ACCEPTED", OR: [{ userAId: userId, userBId: friendId }, { userAId: friendId, userBId: userId }] }, select: { id: true } }),
-    ]);
+    const source = await tx.routinePlan.findFirst({ where: { id: sourceRoutineId, userId, kind: "PERSONAL" }, include: { exercises: { orderBy: { position: "asc" } } } });
     if (!source) throw new Error("Elegí una rutina personal válida para usar como base.");
-    if (!friendship) throw new Error("Solo podés compartir rutinas con amigos.");
     const routineName = String(name || source.name).trim();
     if (!routineName || routineName.length > 80) throw new Error("El nombre de la rutina no es válido.");
     return tx.routinePlan.create({
       data: {
         userId, updatedById: userId, name: routineName, type: source.type, kind: "SHARED", days: source.days === null ? [] : source.days,
         exercises: { create: source.exercises.map((exercise) => ({ position: exercise.position, name: exercise.name, muscle: exercise.muscle, sets: exercise.sets, reps: exercise.reps, weight: exercise.weight, technique: exercise.technique, trainingDay: exercise.trainingDay, completed: exercise.completed, actualReps: exercise.actualReps, note: exercise.note })) },
-        members: { create: [{ userId, role: "OWNER" }, { userId: friendId, role: "MEMBER" }] },
+        members: { create: [{ userId, role: "OWNER" }, ...memberIds.map((memberId) => ({ userId: memberId, role: "MEMBER" as const }))] },
       },
       include: { members: { include: { user: { select: { nickname: true, name: true } } } } },
     });
   });
+}
+
+export async function createSharedDiet(userId: string, sourceDietId: string, friendIds: string[], name?: string) {
+  const prisma = getPrisma();
+  const memberIds = await ensureFriends(userId, friendIds);
+  return prisma.$transaction(async (tx) => {
+    const source = await tx.dietPlan.findFirst({ where: { id: sourceDietId, userId, kind: "PERSONAL" }, include: { meals: { orderBy: { position: "asc" } } } });
+    if (!source) throw new Error("Elegí una dieta personal válida para usar como base.");
+    const dietName = String(name || source.name).trim();
+    if (!dietName || dietName.length > 120) throw new Error("El nombre de la dieta no es válido.");
+    return tx.dietPlan.create({
+      data: {
+        userId, updatedById: userId, kind: "SHARED", name: dietName, sex: source.sex, age: source.age, weight: source.weight, height: source.height, activity: source.activity, activityLabel: source.activityLabel, goal: source.goal, mealsPerDay: source.mealsPerDay, calories: source.calories, tdee: source.tdee, protein: source.protein, carbs: source.carbs, fats: source.fats, active: true,
+        meals: { create: source.meals.map((meal) => ({ position: meal.position, name: meal.name, time: meal.time, kcal: meal.kcal, protein: meal.protein, carbs: meal.carbs, fats: meal.fats, foods: JSON.parse(JSON.stringify(meal.foods)) })) },
+        members: { create: [{ userId, role: "OWNER" }, ...memberIds.map((memberId) => ({ userId: memberId, role: "MEMBER" as const }))] },
+      },
+      include: { members: { include: { user: { select: { nickname: true, name: true } } } } },
+    });
+  });
+}
+
+export async function listSharedDiets(userId: string) {
+  return getPrisma().dietPlan.findMany({ where: { kind: "SHARED", members: { some: { userId } } }, include: { meals: { select: { id: true } }, members: { include: { user: { select: { id: true, name: true, nickname: true, avatarUrl: true } } }, orderBy: { createdAt: "asc" } }, updatedBy: { select: { nickname: true, name: true } } }, orderBy: { updatedAt: "desc" } });
 }
 
 export async function leaveSharedRoutine(userId: string, routineId: string) {
@@ -166,11 +201,12 @@ function weekStart() {
 export async function getSharedRoutineDashboard(userId: string, routineId: string) {
   const routine = await getSharedRoutineForMember(userId, routineId);
   if (!routine) return null;
+  if (routine.userId !== userId) return null;
   const memberIds = routine.members.map((member) => member.userId);
   const sessions = await getPrisma().workoutSession.findMany({
     where: { routineId, userId: { in: memberIds }, status: "FINISHED" },
     orderBy: { finishedAt: "asc" },
-    include: { exercises: { include: { sets: true } } },
+    select: { id: true, userId: true, status: true, finishedAt: true, updatedAt: true, exercises: { select: { name: true, sets: { select: { completed: true, weight: true, reps: true } } } } },
   });
   const since = weekStart();
   const metrics = new Map(memberIds.map((id) => [id, { sessions: 0, volume: 0, sets: 0, prs: 0 }]));

@@ -87,16 +87,29 @@ export function useOfflineReady(user: OfflineIdentity) {
 
   useEffect(() => {
     let current = true;
+    let bootstrapTimer: number | null = null;
+    let idleCallback: number | null = null;
+    const idleWindow = window as unknown as { requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number; cancelIdleCallback?: (handle: number) => void };
     const update = (event: Event) => {
       if (current) setResult((event as CustomEvent<OfflineBootstrapResult>).detail);
     };
+    const prepare = () => {
+      void prepareOfflineTraining()
+        .then((next) => { if (current) setResult(next); })
+        .catch(() => { if (current) setResult({ state: "failed", message: "No se pudo completar la descarga offline." }); });
+    };
     window.addEventListener("toro-offline-readiness", update);
     void setActiveOfflineUser(user)
-      .then(prepareOfflineTraining)
-      .then((next) => { if (current) setResult(next); })
+      .then(() => {
+        if (!current) return;
+        if (idleWindow.requestIdleCallback) idleCallback = idleWindow.requestIdleCallback(prepare, { timeout: 1_500 });
+        else bootstrapTimer = window.setTimeout(prepare, 350);
+      })
       .catch(() => { if (current) setResult({ state: "failed", message: "No se pudo completar la descarga offline." }); });
     return () => {
       current = false;
+      if (bootstrapTimer !== null) window.clearTimeout(bootstrapTimer);
+      if (idleCallback !== null) idleWindow.cancelIdleCallback?.(idleCallback);
       window.removeEventListener("toro-offline-readiness", update);
     };
   }, [user]);

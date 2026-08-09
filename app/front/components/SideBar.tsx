@@ -9,6 +9,7 @@ import {
   Gift,
   Mail,
   Medal,
+  TrendingUp,
   Trophy,
   UsersRound,
   X,
@@ -44,6 +45,12 @@ const sections = [
         description: "Tus rutinas y progreso",
         href: "/dashboard/routine",
         icon: Mail,
+      },
+      {
+        label: "Progreso",
+        description: "Calendario, volumen y récords",
+        href: "/dashboard/progress",
+        icon: TrendingUp,
       },
       {
         label: "Hábitos",
@@ -117,7 +124,7 @@ export default function ToroSidebar({
           {/* ========================================================= */}
 
           <motion.div
-            initial={false}
+            initial={{ opacity: 0 }}
             animate={{ opacity: open ? 1 : 0 }}
             transition={{ duration: 0.16 }}
             onClick={onClose}
@@ -136,7 +143,7 @@ export default function ToroSidebar({
           {/* ========================================================= */}
 
           <motion.aside
-            initial={false}
+            initial={{ x: "-105%", scale: 0.98, opacity: 0 }}
             animate={open ? { x: 0, scale: 1, opacity: 1 } : { x: "-105%", scale: 0.98, opacity: 0 }}
             transition={{
               type: "tween",

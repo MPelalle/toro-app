@@ -30,7 +30,23 @@ export async function GET(request: Request) {
   const sessions = await getPrisma().workoutSession.findMany({
     where: { userId: user.id, routineId, status: "FINISHED" },
     orderBy: { finishedAt: "asc" },
-    include: { exercises: { include: { sets: true } } },
+    select: {
+      finishedAt: true,
+      updatedAt: true,
+      exercises: {
+        select: {
+          name: true,
+          muscle: true,
+          sets: {
+            select: {
+              completed: true,
+              reps: true,
+              weight: true,
+            },
+          },
+        },
+      },
+    },
   });
   const exerciseMap = new Map<string, { name: string; muscle: string; bestWeight: number; estimatedOneRepMax: number; history: Point[] }>();
   const weeklyMuscles = new Map<string, number>();

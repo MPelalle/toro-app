@@ -46,6 +46,16 @@ enum RoutineMemberRole {
   MEMBER
 }
 
+enum DietKind {
+  PERSONAL
+  SHARED
+}
+
+enum DietMemberRole {
+  OWNER
+  MEMBER
+}
+
 /// Perfil de la aplicación. Su `id` debe coincidir con el UUID de auth.users
 /// cuando se conecte Supabase Auth.
 model User {
@@ -61,6 +71,7 @@ model User {
   avatarUrl String? @map("avatar_url")
   loginCount Int @default(0) @map("login_count")
   appSeconds Int @default(0) @map("app_seconds")
+  lastActiveAt DateTime? @map("last_active_at")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -76,6 +87,10 @@ model User {
   receivedFriendships Friendship[] @relation("FriendshipAddressee")
   routineMemberships RoutineMember[]
   routinesLastUpdated RoutinePlan[] @relation("RoutineLastUpdatedBy")
+  dietsLastUpdated DietPlan[] @relation("DietLastUpdatedBy")
+  dietMemberships DietMember[]
+  dietWeightEntries DietWeightEntry[]
+  dietDailyLogs DietDailyLog[]
 
   @@map("users")
 }
@@ -122,15 +137,20 @@ model DietPlan {
   carbs       Int
   fats        Int
   active      Boolean  @default(true)
+  kind        DietKind @default(PERSONAL)
+  updatedById String? @map("updated_by_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedBy     User?          @relation("DietLastUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   meals         DietMeal[]
   weightEntries DietWeightEntry[]
   dailyLogs     DietDailyLog[]
+  members       DietMember[]
 
   @@index([userId, active])
+  @@index([kind, updatedAt])
   @@index([userId, createdAt])
   @@map("diet_plans")
 }
@@ -157,20 +177,24 @@ model DietMeal {
 model DietWeightEntry {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   dietId    String   @map("diet_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
   date      DateTime @db.Date
   weight    Float
   note      String?
   createdAt DateTime @default(now()) @map("created_at")
 
   diet DietPlan @relation(fields: [dietId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([dietId, date])
+  @@index([userId, date])
   @@map("diet_weight_entries")
 }
 
 model DietDailyLog {
   id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   dietId           String   @map("diet_id") @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
   date             DateTime @db.Date
   completedMealIds Json     @map("completed_meal_ids")
   comment          String?
@@ -178,9 +202,25 @@ model DietDailyLog {
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   diet DietPlan @relation(fields: [dietId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([dietId, date])
+  @@unique([dietId, userId, date])
+  @@index([userId, date])
   @@map("diet_daily_logs")
+}
+
+model DietMember {
+  dietId    String         @map("diet_id") @db.Uuid
+  userId    String         @map("user_id") @db.Uuid
+  role      DietMemberRole @default(MEMBER)
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  diet DietPlan @relation(fields: [dietId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([dietId, userId])
+  @@index([userId, createdAt])
+  @@map("diet_members")
 }
 
 model AuthToken {

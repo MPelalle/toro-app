@@ -4,7 +4,8 @@
 import Link from "next/link";
 import { ArrowLeft, Check, ChevronRight, Flame, Info, Plus, Sparkles, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import { activityLevels, calculateDiet, dietRequest, Diet, DietGoal, DietMeal, foodCatalog, goalLabels, Sex } from "@/lib/diet";
+import { activityLevels, calculateDiet, dietRequest, Diet, DietGoal, DietMeal, goalLabels, Sex } from "@/lib/diet";
+import { foodCatalog } from "@/lib/diet-food-catalog";
 import { useRouter } from "next/navigation";
 
 type Selections = Record<string, Record<string, number>>;
