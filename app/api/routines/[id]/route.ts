@@ -28,7 +28,7 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/routines/[
     const refreshed = await accessible(id); return refreshed?.plan ? Response.json(serialize(refreshed.plan)) : notFound();
   }
   const name = String(body.name || "").trim(); const type = String(body.type || ""); const days: string[] = Array.isArray(body.days) ? body.days.map((day: unknown) => String(day)) : [];
-  if (!name || name.length > 80 || !["Weider", "Torso / Pierna", "Fullbody"].includes(type) || !days.length || days.length > 7 || new Set(days).size !== days.length || days.some((day) => !["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].includes(day))) return Response.json({ error: "Datos inválidos" }, { status: 400 });
+  if (!name || name.length > 80 || !["Weider", "Torso / Pierna", "Fullbody", "Personalizada"].includes(type) || !days.length || days.length > 7 || new Set(days).size !== days.length || days.some((day) => !["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].includes(day))) return Response.json({ error: "Datos inválidos" }, { status: 400 });
   const sourceExercises = Array.isArray(body.exercises) ? body.exercises : null;
   if (sourceExercises) {
     if (!sourceExercises.length || sourceExercises.length > 60) return Response.json({ error: "La rutina necesita entre 1 y 60 ejercicios." }, { status: 400 });

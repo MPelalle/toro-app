@@ -16,7 +16,7 @@ const trainingDays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
 type CommunityOverview = {
   friends: Array<{ id: string; name: string; nickname: string | null; presence: "TRAINING" | "ONLINE" | "OFFLINE" }>;
-  routines: Array<{ id: string; name: string; type: string; exerciseCount: number; canReview: boolean; members: Array<{ id: string; name: string }> }>;
+  routines: Array<{ id: string; name: string; exerciseCount: number; canReview: boolean; members: Array<{ id: string; name: string }> }>;
 };
 
 type HabitPlanItem = {
@@ -530,7 +530,7 @@ function CommunitySummary({ community }: { community: CommunityOverview | null }
             <div className="flex items-center gap-2 text-[#b7ff00]"><Dumbbell size={17} /><p className="text-sm font-semibold">Rutinas compartidas</p></div>
             {!routines.length ? <p className="mt-4 text-sm leading-6 text-white/40">No hay rutinas compartidas todavía.</p> : (
               <div className="mt-4 space-y-2">
-                {routines.slice(0, 3).map((routine) => <Link key={routine.id} href={routine.canReview ? `/dashboard/community/routines/${routine.id}` : `/dashboard/routine/${routine.id}`} className="flex items-center justify-between gap-3 rounded-xl bg-white/[.04] px-3 py-2 transition hover:bg-white/[.08]"><span className="min-w-0"><span className="block truncate text-sm font-semibold">{routine.name}</span><span className="block text-xs text-white/40">{routine.exerciseCount} ejercicios · {routine.type}</span></span><ArrowRight size={15} className="shrink-0 text-[#b7ff00]" /></Link>)}
+                {routines.slice(0, 3).map((routine) => <Link key={routine.id} href={routine.canReview ? `/dashboard/community/routines/${routine.id}` : `/dashboard/routine/${routine.id}`} className="flex items-center justify-between gap-3 rounded-xl bg-white/[.04] px-3 py-2 transition hover:bg-white/[.08]"><span className="min-w-0"><span className="block truncate text-sm font-semibold">{routine.name}</span><span className="block text-xs text-white/40">{routine.exerciseCount} ejercicio{routine.exerciseCount === 1 ? "" : "s"}</span></span><ArrowRight size={15} className="shrink-0 text-[#b7ff00]" /></Link>)}
               </div>
             )}
           </article>

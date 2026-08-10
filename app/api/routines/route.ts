@@ -4,7 +4,7 @@ import { getPrisma } from "@/lib/prisma";
 import { hasTrustedOrigin, isUuid, originError } from "@/lib/security";
 
 const days = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-const types = ["Weider", "Torso / Pierna", "Fullbody"];
+const types = ["Weider", "Torso / Pierna", "Fullbody", "Personalizada"];
 const techniques = ["Normal", "Drop-set", "Rest-pause", "Superserie", "Tempo controlado"];
 const include = { exercises: { orderBy: { position: "asc" as const } } };
 
