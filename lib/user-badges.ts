@@ -42,16 +42,18 @@ export type UserBadgeProfile = {
   badges: UserBadge[];
 };
 
-export async function getUserBadgeProfile(userId: string, displayName: string): Promise<UserBadgeProfile> {
+export async function getUserBadgeProfile(userId: string, displayName: string, options: { trackActivity?: boolean } = {}): Promise<UserBadgeProfile> {
   const prisma = getPrisma();
   const today = argentinaDateKey();
   const todayDate = databaseDay(today);
 
-  await prisma.appDailyVisit.upsert({
-    where: { userId_date: { userId, date: todayDate } },
-    update: {},
-    create: { userId, date: todayDate },
-  });
+  if (options.trackActivity !== false) {
+    await prisma.appDailyVisit.upsert({
+      where: { userId_date: { userId, date: todayDate } },
+      update: {},
+      create: { userId, date: todayDate },
+    });
+  }
 
   const [visits, completedHabits, sessions, diets, awards, routines] = await Promise.all([
     prisma.appDailyVisit.findMany({ where: { userId }, select: { date: true } }),
@@ -110,13 +112,13 @@ export async function getUserBadgeProfile(userId: string, displayName: string): 
     return withBadgeTier(badge, Math.max(badge.tier, Math.min(4, awardedTier)) as BadgeTier);
   });
 
-  await Promise.all(badges.filter((badge) => badge.tier > (awardsByBadge.get(badge.id) ?? 0)).map((badge) =>
-    prisma.userBadgeAward.upsert({
-      where: { userId_badgeId: { userId, badgeId: badge.id } },
-      update: { tier: badge.tier },
-      create: { userId, badgeId: badge.id, tier: badge.tier },
-    }),
-  ));
+  if (options.trackActivity !== false) await Promise.all(badges.filter((badge) => badge.tier > (awardsByBadge.get(badge.id) ?? 0)).map((badge) =>
+      prisma.userBadgeAward.upsert({
+        where: { userId_badgeId: { userId, badgeId: badge.id } },
+        update: { tier: badge.tier },
+        create: { userId, badgeId: badge.id, tier: badge.tier },
+      }),
+    ));
 
   return { displayName, badges };
 }

@@ -15,6 +15,12 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/routines/[
   if (plan.kind === "SHARED" && plan.userId !== user.id) return Response.json({ error: "Solo quien creó la rutina puede modificarla." }, { status: 403 });
   const body = await request.json().catch(() => null); if (!body || typeof body !== "object") return Response.json({ error: "Datos inválidos" }, { status: 400 });
   const prisma = getPrisma();
+  const publicationData = typeof body.isPublished === "boolean"
+    ? plan.kind === "PERSONAL" && plan.userId === user.id
+      ? { isPublished: body.isPublished, publishedAt: body.isPublished ? (plan.publishedAt || new Date()) : null }
+      : null
+    : {};
+  if (publicationData === null) return Response.json({ error: "Solo podés publicar tus rutinas personales." }, { status: 403 });
   if (body.active === true) {
     if (plan.kind === "SHARED") return Response.json({ error: "Las rutinas compartidas no modifican tu rutina personal activa." }, { status: 400 });
     const updated = await prisma.$transaction(async (tx) => { await tx.routinePlan.updateMany({ where: { userId: plan.userId, kind: "PERSONAL", active: true }, data: { active: false } }); return tx.routinePlan.update({ where: { id }, data: { active: true, updatedById: user.id }, include }); });
@@ -36,17 +42,18 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/routines/[
       if (!source || typeof source !== "object") return null;
       const item = source as Record<string, unknown>;
       const sets = Number(item.sets); const reps = Number(item.reps); const weight = Number(item.weight);
-      const exercise = { position, name: String(item.name || "").trim(), muscle: String(item.muscle || "").trim(), sets, reps, weight, technique: String(item.technique || ""), trainingDay: String(item.trainingDay || "") };
-      return exercise.name && exercise.name.length <= 100 && exercise.muscle && exercise.muscle.length <= 60 && Number.isInteger(sets) && sets >= 1 && sets <= 20 && Number.isInteger(reps) && reps >= 1 && reps <= 100 && Number.isFinite(weight) && weight >= 0 && weight <= 1_000 && ["Normal", "Drop-set", "Rest-pause", "Superserie", "Tempo controlado"].includes(exercise.technique) && days.includes(exercise.trainingDay) ? exercise : null;
+      const catalogExerciseId = item.catalogExerciseId === null || item.catalogExerciseId === undefined || item.catalogExerciseId === "" ? null : String(item.catalogExerciseId).trim();
+      const exercise = { position, catalogExerciseId, name: String(item.name || "").trim(), muscle: String(item.muscle || "").trim(), sets, reps, weight, technique: String(item.technique || ""), trainingDay: String(item.trainingDay || "") };
+      return (catalogExerciseId === null || catalogExerciseId.length <= 100) && exercise.name && exercise.name.length <= 100 && exercise.muscle && exercise.muscle.length <= 60 && Number.isInteger(sets) && sets >= 1 && sets <= 20 && Number.isInteger(reps) && reps >= 1 && reps <= 100 && Number.isFinite(weight) && weight >= 0 && weight <= 1_000 && ["Normal", "Drop-set", "Rest-pause", "Superserie", "Tempo controlado"].includes(exercise.technique) && days.includes(exercise.trainingDay) ? exercise : null;
     });
     if (!exercises.every(Boolean)) return Response.json({ error: "Revisá los datos de los ejercicios." }, { status: 400 });
     const updated = await prisma.$transaction(async (tx) => {
       await tx.routineExercise.deleteMany({ where: { routineId: id } });
-      return tx.routinePlan.update({ where: { id }, data: { name, type, days, updatedById: user.id, exercises: { create: exercises as NonNullable<typeof exercises[number]>[] } }, include });
+      return tx.routinePlan.update({ where: { id }, data: { name, type, days, updatedById: user.id, ...publicationData, exercises: { create: exercises as NonNullable<typeof exercises[number]>[] } }, include });
     });
     return Response.json(serialize(updated));
   }
-  const updated = await prisma.routinePlan.update({ where: { id }, data: { name, type, days, updatedById: user.id }, include }); return Response.json(serialize(updated));
+  const updated = await prisma.routinePlan.update({ where: { id }, data: { name, type, days, updatedById: user.id, ...publicationData }, include }); return Response.json(serialize(updated));
 }
 export async function DELETE(request: Request, ctx: RouteContext<"/api/routines/[id]">) {
   if (!hasTrustedOrigin(request)) return originError();

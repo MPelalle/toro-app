@@ -9,6 +9,8 @@ import {
   Gift,
   Mail,
   Medal,
+  Moon,
+  Sun,
   TrendingUp,
   Trophy,
   UsersRound,
@@ -59,8 +61,8 @@ const sections = [
         icon: CircleHelp,
       },
       {
-        label: "Comunidad",
-        description: "Amigos y rutinas compartidas",
+        label: "Modo Comunidad",
+        description: "Tu perfil, amigos y actividad social",
         href: "/dashboard/community",
         icon: UsersRound,
       },
@@ -90,6 +92,18 @@ const sections = [
       },
     ],
   },
+  {
+    title: "RECOMPENSAS",
+    eyebrow: "TU PROGRESO",
+    items: [
+      {
+        label: "Premios TORO",
+        description: "Descuentos por tu constancia",
+        href: "/dashboard/rewards",
+        icon: Gift,
+      },
+    ],
+  },
 ];
 
 export default function ToroSidebar({
@@ -99,6 +113,7 @@ export default function ToroSidebar({
   const [canInstall, setCanInstall] = useState(false);
   const [installed, setInstalled] = useState(false);
   const [installHint, setInstallHint] = useState("");
+  const [theme, setTheme] = useState<"dark" | "light">(() => typeof window !== "undefined" && window.localStorage.getItem("toro-theme") === "light" ? "light" : "dark");
 
   useEffect(() => {
     const refresh = () => {
@@ -109,6 +124,15 @@ export default function ToroSidebar({
     window.addEventListener("toro-pwa-install-change", refresh);
     return () => window.removeEventListener("toro-pwa-install-change", refresh);
   }, []);
+
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    document.documentElement.dataset.theme = next === "light" ? "light" : "";
+    document.documentElement.style.colorScheme = next;
+    window.localStorage.setItem("toro-theme", next);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", next === "light" ? "#f3f5ed" : "#090a08");
+  }
 
   async function installApp() {
     setInstallHint("");
@@ -541,6 +565,11 @@ export default function ToroSidebar({
                 <button type="button" onClick={() => void installApp()} disabled={installed} className="group flex w-full items-center gap-3 rounded-[20px] border border-[#B7FF00]/15 bg-[#B7FF00]/[0.035] p-3 text-left transition-all duration-300 hover:border-[#B7FF00]/30 hover:bg-[#B7FF00]/[0.07] disabled:cursor-default disabled:opacity-60">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] border border-[#B7FF00]/15 bg-[#B7FF00]/8 text-[#B7FF00]"><Download size={18} strokeWidth={1.8} /></div>
                   <div className="min-w-0 flex-1"><p className="text-[14px] font-medium text-white/85">{installed ? "TORO está instalada" : "Instalar la app"}</p><p className="mt-0.5 truncate text-[11px] text-white/30">{installed ? "Abrila desde la pantalla de inicio" : canInstall ? "Entrená aun sin conexión" : installHint || "Disponible para tu dispositivo"}</p></div>
+                  <ChevronRight size={16} className="text-[#B7FF00]/40 transition-all duration-300 group-hover:translate-x-1 group-hover:text-[#B7FF00]" />
+                </button>
+                <button type="button" onClick={toggleTheme} aria-pressed={theme === "light"} className="group mt-3 flex w-full items-center gap-3 rounded-[20px] border border-white/10 bg-white/[0.035] p-3 text-left transition-all duration-300 hover:border-[#B7FF00]/30 hover:bg-[#B7FF00]/[0.07]">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] border border-white/10 bg-white/[0.04] text-[#B7FF00]">{theme === "light" ? <Moon size={18} strokeWidth={1.8} /> : <Sun size={18} strokeWidth={1.8} />}</div>
+                  <div className="min-w-0 flex-1"><p className="text-[14px] font-medium text-white/85">{theme === "light" ? "Modo claro activo" : "Usar modo claro"}</p><p className="mt-0.5 truncate text-[11px] text-white/30">{theme === "light" ? "Volver al modo oscuro" : "Una vista clara para toda la app"}</p></div>
                   <ChevronRight size={16} className="text-[#B7FF00]/40 transition-all duration-300 group-hover:translate-x-1 group-hover:text-[#B7FF00]" />
                 </button>
               </motion.div>

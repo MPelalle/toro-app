@@ -1,4 +1,5 @@
 import type { OfflineWorkoutSession, OfflineWorkoutSet } from "./types";
+import { isWorkoutEmotionalState } from "@/lib/workout-session-feedback";
 
 type RemoteWorkoutSet = {
   id: string;
@@ -26,6 +27,7 @@ export type RemoteWorkoutSession = {
   durationSeconds: number | null;
   notes: string | null;
   emotionalRating: number | null;
+  emotionalState: string | null;
   version: number;
   clientUpdatedAt: Date;
   createdAt: Date;
@@ -33,6 +35,7 @@ export type RemoteWorkoutSession = {
   exercises: Array<{
     id: string;
     routineExerciseId: string;
+    catalogExerciseId: string | null;
     position: number;
     name: string;
     muscle: string;
@@ -69,11 +72,13 @@ export function serializeRemoteWorkoutSession(session: RemoteWorkoutSession): Of
     durationSeconds: session.durationSeconds,
     notes: session.notes,
     emotionalRating: session.emotionalRating,
+    emotionalState: isWorkoutEmotionalState(session.emotionalState) ? session.emotionalState : null,
     clientUpdatedAt: session.clientUpdatedAt.toISOString(),
     exercises: session.exercises.map((exercise) => ({
       ...metadata(exercise.id, session.userId, session.createdAt, session.updatedAt),
       sessionId: session.id,
       routineExerciseId: exercise.routineExerciseId,
+      catalogExerciseId: exercise.catalogExerciseId,
       position: exercise.position,
       name: exercise.name,
       muscle: exercise.muscle,

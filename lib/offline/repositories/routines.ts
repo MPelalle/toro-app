@@ -4,7 +4,7 @@ import { STORES } from "../schema";
 import { getActiveOfflineUserId } from "./identity";
 import type { LocalRoutine, LocalRoutineDay, LocalRoutineExercise } from "../types";
 
-function routineMetadata(id: string, userId: string, createdAt: string, updatedAt: string): Omit<LocalRoutine, "name" | "type" | "active"> {
+function routineMetadata(id: string, userId: string, createdAt: string, updatedAt: string): Omit<LocalRoutine, "name" | "type" | "active" | "isPublished" | "publishedAt"> {
   return { id, userId, createdAt, updatedAt, deletedAt: null, syncStatus: "synced", lastSyncedAt: updatedAt, version: 1 };
 }
 
@@ -19,7 +19,7 @@ async function writeRoutine(transaction: IDBTransaction, routine: Routine, userI
   const now = new Date().toISOString();
   const createdAt = existing?.createdAt ?? routine.createdAt ?? now;
   const base = { ...routineMetadata(routine.id, userId, createdAt, now), version: existing?.version ?? 1 };
-  routines.put({ ...base, name: routine.name, type: routine.type, kind: routine.kind, canEdit: routine.canEdit, active: routine.active } satisfies LocalRoutine);
+  routines.put({ ...base, name: routine.name, type: routine.type, kind: routine.kind, canEdit: routine.canEdit, active: routine.active, isPublished: routine.isPublished ?? false, publishedAt: routine.publishedAt ?? null } satisfies LocalRoutine);
 
   const daysStore = transaction.objectStore(STORES.routineDays);
   const exercisesStore = transaction.objectStore(STORES.routineExercises);
@@ -41,6 +41,7 @@ async function writeRoutine(transaction: IDBTransaction, routine: Routine, userI
       ...base,
       id: exercise.id,
       routineId: routine.id,
+      catalogExerciseId: exercise.catalogExerciseId ?? null,
       routineDayId: daysByName.get(exercise.trainingDay) ?? null,
       position,
       name: exercise.name,
@@ -74,6 +75,7 @@ export async function cacheRoutineRecords(routines: Routine[]) {
 function toRoutineExercise(exercise: LocalRoutineExercise): RoutineExercise {
   return {
     id: exercise.id,
+    catalogExerciseId: exercise.catalogExerciseId ?? null,
     name: exercise.name,
     muscle: exercise.muscle,
     sets: exercise.targetSets,
@@ -99,6 +101,8 @@ async function hydrateRoutine(transaction: IDBTransaction, routine: LocalRoutine
     kind: routine.kind,
     canEdit: routine.canEdit,
     active: routine.active,
+    isPublished: routine.isPublished,
+    publishedAt: routine.publishedAt,
     days: days.filter((day) => !day.deletedAt).sort((a, b) => a.position - b.position).map((day) => day.name),
     exercises: exercises.filter((exercise) => !exercise.deletedAt).sort((a, b) => a.position - b.position).map(toRoutineExercise),
     createdAt: routine.createdAt,

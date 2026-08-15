@@ -56,6 +56,16 @@ enum DietMemberRole {
   MEMBER
 }
 
+enum SocialNotificationType {
+  REPOST
+  ROUTINE_SAVED
+}
+
+enum ProfileMessageAudience {
+  FRIENDS
+  ANYONE
+}
+
 /// Perfil de la aplicación. Su `id` debe coincidir con el UUID de auth.users
 /// cuando se conecte Supabase Auth.
 model User {
@@ -66,6 +76,8 @@ model User {
   /// Identificador público de Comunidad. La unicidad sin distinguir mayúsculas
   /// se completa con un índice funcional en la migración SQL.
   nickname  String?  @unique
+  bio       String?
+  profileMessageAudience ProfileMessageAudience @default(FRIENDS) @map("profile_message_audience")
   pinHash   String?  @map("pin_hash")
   emailVerifiedAt DateTime? @map("email_verified_at")
   avatarUrl String? @map("avatar_url")
@@ -91,6 +103,14 @@ model User {
   dietMemberships DietMember[]
   dietWeightEntries DietWeightEntry[]
   dietDailyLogs DietDailyLog[]
+  dietWeeklyCheckIns DietWeeklyCheckIn[]
+  communityStatuses CommunityStatus[]
+  profileMessagesSent CommunityProfileMessage[] @relation("ProfileMessageAuthor")
+  profileMessagesReceived CommunityProfileMessage[] @relation("ProfileMessageProfile")
+  reposts SocialRepost[] @relation("RepostAuthor")
+  repostsReceived SocialRepost[] @relation("RepostOriginalAuthor")
+  notifications SocialNotification[] @relation("NotificationRecipient")
+  notificationsSent SocialNotification[] @relation("NotificationActor")
 
   @@map("users")
 }
@@ -137,6 +157,7 @@ model DietPlan {
   carbs       Int
   fats        Int
   active      Boolean  @default(true)
+  immersiveMode Boolean @default(false) @map("immersive_mode")
   kind        DietKind @default(PERSONAL)
   updatedById String? @map("updated_by_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at")
@@ -147,6 +168,7 @@ model DietPlan {
   meals         DietMeal[]
   weightEntries DietWeightEntry[]
   dailyLogs     DietDailyLog[]
+  weeklyCheckIns DietWeeklyCheckIn[]
   members       DietMember[]
 
   @@index([userId, active])
@@ -207,6 +229,30 @@ model DietDailyLog {
   @@unique([dietId, userId, date])
   @@index([userId, date])
   @@map("diet_daily_logs")
+}
+
+/// Revisión semanal opcional del modo inmersivo. Las comparativas se derivan
+/// de estos registros y de la adherencia diaria, sin duplicar métricas agregadas.
+model DietWeeklyCheckIn {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dietId         String   @map("diet_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  weekStart      DateTime @map("week_start") @db.Date
+  weight         Float
+  feeling        String
+  energy         Int
+  hunger         Int
+  note           String?
+  adjustmentKcal Int      @default(0) @map("adjustment_kcal")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  diet DietPlan @relation(fields: [dietId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([dietId, userId, weekStart])
+  @@index([userId, weekStart])
+  @@map("diet_weekly_check_ins")
 }
 
 model DietMember {
@@ -299,6 +345,11 @@ model RoutinePlan {
   kind      RoutineKind @default(PERSONAL)
   days      Json
   active    Boolean  @default(false)
+  isPublished Boolean @default(false) @map("is_published")
+  publishedAt DateTime? @map("published_at")
+  importedFromRoutineId String? @map("imported_from_routine_id") @db.Uuid
+  importedFromUserId String? @map("imported_from_user_id") @db.Uuid
+  importedFromCreatorName String? @map("imported_from_creator_name")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   updatedById String? @map("updated_by_id") @db.Uuid
@@ -310,9 +361,76 @@ model RoutinePlan {
   workoutSessions WorkoutSession[]
 
   @@index([userId, kind, active])
+  @@index([userId, isPublished, publishedAt])
+  @@index([kind, isPublished, publishedAt])
+  @@index([importedFromRoutineId])
+  @@unique([userId, importedFromRoutineId])
   @@index([kind, updatedAt])
   @@index([userId, createdAt])
   @@map("routine_plans")
+}
+
+model CommunityStatus {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("community_statuses")
+}
+
+/// Texto breve dejado por un amigo en el perfil de otro atleta.
+model CommunityProfileMessage {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authorId      String   @map("author_id") @db.Uuid
+  profileUserId String   @map("profile_user_id") @db.Uuid
+  content       String
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  author      User @relation("ProfileMessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  profileUser User @relation("ProfileMessageProfile", fields: [profileUserId], references: [id], onDelete: Cascade)
+
+  @@index([profileUserId, createdAt])
+  @@index([authorId, createdAt])
+  @@map("community_profile_messages")
+}
+
+model SocialRepost {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  originalAuthorId  String   @map("original_author_id") @db.Uuid
+  originalType      String   @map("original_type")
+  originalId        String   @map("original_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user           User @relation("RepostAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  originalAuthor User @relation("RepostOriginalAuthor", fields: [originalAuthorId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, originalType, originalId])
+  @@index([userId, createdAt])
+  @@index([originalAuthorId, createdAt])
+  @@map("social_reposts")
+}
+
+model SocialNotification {
+  id         String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String                 @map("user_id") @db.Uuid
+  actorId    String                 @map("actor_id") @db.Uuid
+  type       SocialNotificationType
+  targetType String                 @map("target_type")
+  targetId   String                 @map("target_id")
+  createdAt  DateTime               @default(now()) @map("created_at")
+  readAt     DateTime?              @map("read_at")
+
+  user  User @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor User @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, actorId, type, targetId])
+  @@index([userId, readAt, createdAt])
+  @@map("social_notifications")
 }
 
 /// Las columnas user_a_id/user_b_id siempre se almacenan ordenadas por UUID.
@@ -353,6 +471,7 @@ model RoutineMember {
 model RoutineExercise {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   routineId   String   @map("routine_id") @db.Uuid
+  catalogExerciseId String? @map("catalog_exercise_id")
   position    Int
   name        String
   muscle      String
@@ -385,6 +504,7 @@ model WorkoutSession {
   durationSeconds Int?                 @map("duration_seconds")
   notes           String?
   emotionalRating Int?                 @map("emotional_rating")
+  emotionalState  String?              @map("emotional_state")
   version         Int                  @default(1)
   clientUpdatedAt DateTime             @map("client_updated_at")
   createdAt       DateTime             @default(now()) @map("created_at")
@@ -395,6 +515,7 @@ model WorkoutSession {
   exercises WorkoutSessionExercise[]
 
   @@index([userId, routineId, status])
+  @@index([userId, status, finishedAt])
   @@index([userId, clientUpdatedAt])
   @@map("workout_sessions")
 }
@@ -404,6 +525,7 @@ model WorkoutSessionExercise {
   id                String @id @db.Uuid
   sessionId         String @map("session_id") @db.Uuid
   routineExerciseId String @map("routine_exercise_id") @db.Uuid
+  catalogExerciseId String? @map("catalog_exercise_id")
   position          Int
   name              String
   muscle            String

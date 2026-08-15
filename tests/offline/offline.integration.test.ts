@@ -153,9 +153,9 @@ describe.sequential("persistencia offline de entrenamientos", () => {
   it("permite finalizar un entrenamiento completo sin conexión", async () => {
     const session = await storedSession();
     const finishedAt = "2026-08-06T11:00:00.000Z";
-    await saveLocalWorkoutSession({ ...session, status: "FINISHED", finishedAt, durationSeconds: 3_600, notes: "Buen entrenamiento", emotionalRating: 5, exercises: session.exercises.map((exercise) => ({ ...exercise, sets: exercise.sets.map((set) => ({ ...set, reps: 8, weight: 80, completed: true })) })) });
+    await saveLocalWorkoutSession({ ...session, status: "FINISHED", finishedAt, durationSeconds: 3_600, notes: "Buen entrenamiento", emotionalRating: 5, emotionalState: "POWERFUL", exercises: session.exercises.map((exercise) => ({ ...exercise, sets: exercise.sets.map((set) => ({ ...set, reps: 8, weight: 80, completed: true })) })) });
     const finished = await getLocalWorkoutSession(session.id);
-    expect(finished).toMatchObject({ status: "FINISHED", finishedAt, durationSeconds: 3_600, emotionalRating: 5, notes: "Buen entrenamiento" });
+    expect(finished).toMatchObject({ status: "FINISHED", finishedAt, durationSeconds: 3_600, emotionalRating: 5, emotionalState: "POWERFUL", notes: "Buen entrenamiento" });
     expect(finished?.exercises[0].sets.every((set) => set.completed)).toBe(true);
   });
 

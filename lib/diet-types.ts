@@ -26,6 +26,7 @@ export type Food = {
 
 export type WeightEntry = { id: string; date: string; weight: number; note?: string };
 export type DailyDietLog = { date: string; completedMeals: string[]; comment: string };
+export type WeeklyDietCheckIn = { id: string; weekStart: string; weight: number; feeling: string; energy: number; hunger: number; note?: string; adjustmentKcal: number };
 
 export type Diet = {
   id: string;
@@ -43,9 +44,11 @@ export type Diet = {
   protein: number;
   carbs: number;
   fats: number;
+  immersiveMode: boolean;
   meals: DietMeal[];
   weightHistory: WeightEntry[];
   dailyLogs: DailyDietLog[];
+  weeklyCheckIns: WeeklyDietCheckIn[];
   createdAt: string;
   active: boolean;
   kind?: "PERSONAL" | "SHARED";

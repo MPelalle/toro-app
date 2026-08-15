@@ -1,3 +1,5 @@
+import type { WorkoutEmotionalState } from "@/lib/workout-session-feedback";
+
 export const SYNC_STATUSES = ["synced", "pending", "syncing", "failed", "conflict"] as const;
 export type SyncStatus = (typeof SYNC_STATUSES)[number];
 
@@ -24,6 +26,8 @@ export type LocalRoutine = SyncMetadata & {
   kind?: "PERSONAL" | "SHARED";
   canEdit?: boolean;
   active: boolean;
+  isPublished?: boolean;
+  publishedAt?: string | null;
 };
 
 export type LocalRoutineDay = SyncMetadata & {
@@ -34,6 +38,7 @@ export type LocalRoutineDay = SyncMetadata & {
 
 export type LocalRoutineExercise = SyncMetadata & {
   routineId: string;
+  catalogExerciseId?: string | null;
   routineDayId: string | null;
   position: number;
   name: string;
@@ -66,6 +71,7 @@ export type OfflineWorkoutSet = SyncMetadata & {
 export type OfflineWorkoutExercise = SyncMetadata & {
   sessionId: string;
   routineExerciseId: string;
+  catalogExerciseId?: string | null;
   position: number;
   name: string;
   muscle: string;
@@ -79,6 +85,7 @@ export type OfflineWorkoutSession = SyncMetadata & {
   durationSeconds: number | null;
   notes: string | null;
   emotionalRating: number | null;
+  emotionalState: WorkoutEmotionalState | null;
   clientUpdatedAt: string;
   exercises: Array<OfflineWorkoutExercise & { sets: OfflineWorkoutSet[] }>;
 };

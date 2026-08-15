@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Share2 } from "lucide-react";
 import type { OfflineWorkoutSession } from "@/lib/offline";
 import type { UserBadge } from "@/lib/badges";
 import type { CompletedWorkoutShareData } from "@/types/workout-share";
-import { WorkoutSharePreview } from "./WorkoutSharePreview";
+import { WorkoutSharePanel, WorkoutSharePreview } from "./WorkoutSharePreview";
 
 type Athlete = { displayName: string; badges: UserBadge[] };
 
-export function ShareWorkoutButton({ session, workoutName }: { session: OfflineWorkoutSession; workoutName: string }) {
+export function ShareWorkoutButton({ session, workoutName, embedded = false }: { session: OfflineWorkoutSession; workoutName: string; embedded?: boolean }) {
   const [open, setOpen] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [athlete, setAthlete] = useState<Athlete>({ displayName: "Atleta TORO", badges: [] });
@@ -41,5 +41,25 @@ export function ShareWorkoutButton({ session, workoutName }: { session: OfflineW
     }
   }
 
+  if (embedded) return <EmbeddedWorkoutShare workout={workout} />;
+
   return <><button type="button" onClick={() => void openPreview()} disabled={loadingProfile} aria-label="Compartir entrenamiento terminado" className="inline-flex items-center gap-2 rounded-xl border border-[#b7ff00]/35 bg-[#b7ff00]/[.08] px-4 py-3 text-sm font-bold text-[#b7ff00] disabled:opacity-50"><Share2 size={16} />{loadingProfile ? "Preparando insignias…" : "Compartir entrenamiento"}</button>{open && <WorkoutSharePreview workout={workout} onClose={() => setOpen(false)} />}</>;
+}
+
+function EmbeddedWorkoutShare({ workout }: { workout: CompletedWorkoutShareData }) {
+  const [loading, setLoading] = useState(true);
+  const [athlete, setAthlete] = useState<Athlete>({ displayName: "Atleta TORO", badges: [] });
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/user/badges", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() as Promise<Athlete> : null)
+      .then((profile) => { if (active && profile) setAthlete(profile); })
+      .catch(() => undefined)
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  if (loading) return <p className="py-10 text-center text-sm text-white/45">Preparando tu tarjeta…</p>;
+  return <WorkoutSharePanel workout={{ ...workout, athlete }} />;
 }

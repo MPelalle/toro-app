@@ -1,10 +1,10 @@
 import { getCurrentUser } from "@/lib/auth";
-import { FRIEND_LIMIT, acceptedFriendCount, listFriends, listPendingRequests, listSharedRoutines } from "@/lib/community";
+import { FRIEND_LIMIT, acceptedFriendCount, getMyCommunitySummary, listFriends, listPendingRequests, listSharedRoutines } from "@/lib/community";
 
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "No autorizado" }, { status: 401 });
-  const [friends, requests, routines, friendCount] = await Promise.all([listFriends(user.id), listPendingRequests(user.id), listSharedRoutines(user.id), acceptedFriendCount(user.id)]);
+  const [friends, requests, routines, friendCount, me] = await Promise.all([listFriends(user.id), listPendingRequests(user.id), listSharedRoutines(user.id), acceptedFriendCount(user.id), getMyCommunitySummary(user.id)]);
   return Response.json({
     friends,
     requests,
@@ -14,5 +14,6 @@ export async function GET() {
     })),
     friendCount,
     friendLimit: FRIEND_LIMIT,
+    me,
   }, { headers: { "Cache-Control": "no-store" } });
 }

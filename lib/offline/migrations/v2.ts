@@ -53,6 +53,7 @@ function migrateRoutines(transaction: IDBTransaction, now: string) {
       exercises.put({
         ...metadata(exerciseId, updatedAt),
         routineId: id,
+        catalogExerciseId: text(source.catalogExerciseId) || null,
         routineDayId: dayPosition >= 0 ? `${id}:day:${dayPosition}` : null,
         position,
         name: text(source.name, "Ejercicio"),
@@ -108,6 +109,7 @@ function migrateSessions(transaction: IDBTransaction, now: string) {
         ...metadata(exerciseId, updatedAt),
         sessionId: id,
         routineExerciseId: text(sourceExercise.routineExerciseId),
+        catalogExerciseId: text(sourceExercise.catalogExerciseId) || null,
         position: number(sourceExercise.position, position),
         name: text(sourceExercise.name, "Ejercicio"),
         muscle: text(sourceExercise.muscle, "General"),

@@ -1,3 +1,5 @@
+import { findExerciseVideo } from "@/lib/exercise-videos";
+
 export type ExerciseCategory = "multiarticulares" | "uniarticulares";
 
 export type MuscleGroup = {
@@ -13,7 +15,9 @@ export type ExerciseOption = {
   muscleId: string;
   category: ExerciseCategory;
   equipment: string[];
+  videoUrl?: string;
 };
+
 
 export const muscleGroups = [
   {
@@ -1181,6 +1185,7 @@ export const exerciseOptions: ExerciseOption[] = muscleGroups.flatMap((group) =>
   (Object.entries(group.exercises) as [ExerciseCategory, readonly { id: string; name: string; equipment: readonly string[] }[]][]).flatMap(([category, exercises]) =>
     exercises.map((exercise) => ({
       ...exercise,
+      videoUrl: findExerciseVideo(exercise)?.videoUrl,
       equipment: [...exercise.equipment],
       muscle: group.name,
       muscleId: group.id,
@@ -1188,4 +1193,3 @@ export const exerciseOptions: ExerciseOption[] = muscleGroups.flatMap((group) =>
     })),
   ),
 );
-

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Apple, ArrowRight, Check, CheckCircle2, Dumbbell, Play, Plus, TrendingUp, UsersRound } from "lucide-react";
+import { Apple, ArrowRight, Bell, Check, CheckCircle2, Dumbbell, Library, MessageCircle, Play, Plus, TrendingUp, UserRound, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { APP_TIME_ZONE, appCalendarDate, appDateKey } from "@/lib/app-date";
 import { dietRequest, Diet, type DailyDietLog, today } from "@/lib/diet";
@@ -9,6 +9,8 @@ import { getActiveWorkoutSession, getRecentWorkoutSessions, isOfflineUserReady }
 import { getRoutinesOfflineFirst, Routine } from "@/lib/routines";
 import { UserBadgeStrip } from "@/components/badges/UserBadges";
 import type { UserBadge } from "@/lib/badges";
+import type { ToroRewards } from "@/lib/reward-types";
+import { RewardsTeaser } from "@/components/rewards/RewardsPanel";
 import { CheckInButton } from "./habits/check-in-button";
 
 const weekdays = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -17,6 +19,15 @@ const trainingDays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 type CommunityOverview = {
   friends: Array<{ id: string; name: string; nickname: string | null; presence: "TRAINING" | "ONLINE" | "OFFLINE" }>;
   routines: Array<{ id: string; name: string; exerciseCount: number; canReview: boolean; members: Array<{ id: string; name: string }> }>;
+  me: {
+    profile: { name: string; nickname: string | null; avatarUrl: string | null };
+    friendCount: number;
+    publishedRoutineCount: number;
+    unreadNotifications: number;
+    lastWorkout: { routineName: string; date: string; durationSeconds: number; volume: number } | null;
+    lastPost: { content: string; date: string } | null;
+    lastMessage: { content: string; date: string; author: { name: string; nickname: string | null } } | null;
+  };
 };
 
 type HabitPlanItem = {
@@ -74,6 +85,7 @@ export default function DashboardOverview({ name, badges, habits }: { name: stri
   const [diet, setDiet] = useState<Diet | null>(null);
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [community, setCommunity] = useState<CommunityOverview | null>(null);
+  const [rewards, setRewards] = useState<ToroRewards | null>(null);
   const [dietReady, setDietReady] = useState(false);
   const [routinesReady, setRoutinesReady] = useState(false);
   const [mealPending, setMealPending] = useState<string | null>(null);
@@ -118,11 +130,15 @@ export default function DashboardOverview({ name, badges, habits }: { name: stri
     void fetch("/api/community", { cache: "no-store" })
       .then((response) => response.ok ? response.json() as Promise<CommunityOverview> : null)
       .then((data) => {
-        if (mounted) setCommunity(data || { friends: [], routines: [] });
+        if (mounted) setCommunity(data);
       })
       .catch(() => {
-        if (mounted) setCommunity({ friends: [], routines: [] });
+        if (mounted) setCommunity(null);
       });
+    void fetch("/api/rewards", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() as Promise<ToroRewards> : null)
+      .then((data) => { if (mounted) setRewards(data); })
+      .catch(() => { if (mounted) setRewards(null); });
 
     return () => {
       mounted = false;
@@ -233,37 +249,8 @@ export default function DashboardOverview({ name, badges, habits }: { name: stri
           onCompleteNextMeal={completeNextMeal}
         />
 
-        <section className="mt-6 grid gap-4 lg:grid-cols-3">
-          <OverviewCard
-            icon={<Apple />}
-            eyebrow="Nutrición"
-            title={dietReady ? diet ? diet.name : "Tu alimentación" : "Cargando plan"}
-            value={dietReady ? diet ? `${mealsDone}/${diet.meals.length}` : "Sin plan" : "…"}
-            detail={dietReady ? diet ? `${diet.calories.toLocaleString("es-AR")} kcal objetivo · ${mealsDone === diet.meals.length ? "Día completo" : "Comidas registradas"}` : "Creá un plan adaptado a tus objetivos." : "Preparando tu seguimiento de comidas."}
-            href={diet ? `/dashboard/diet/${diet.id}` : "/dashboard/diet/new"}
-            color="lime"
-          />
-          <OverviewCard
-            icon={<Dumbbell />}
-            eyebrow="Entrenamiento"
-            title={routinesReady ? routine ? routine.name : "Tu entrenamiento" : "Cargando rutina"}
-            value={routinesReady ? routine ? `${routine.days.length} días` : "Sin rutina" : "…"}
-            detail={routinesReady ? routine ? `${routine.exercises.length} ejercicios disponibles · abrí el plan de hoy` : "Armá una rutina para empezar." : "Recuperando tu rutina, incluso sin conexión."}
-            href={routine ? `/dashboard/routine/${routine.id}` : "/dashboard/routine/new"}
-            color="sky"
-          />
-          <OverviewCard
-            icon={<CheckCircle2 />}
-            eyebrow="Hábitos"
-            title={habits.active ? "Constancia diaria" : "Tus hábitos"}
-            value={habits.active ? `${habits.completed}/${habits.active}` : "Sin hábitos"}
-            detail={habits.active ? "Hábitos completados hoy" : "Creá tu primer hábito y seguí tu progreso."}
-            href="/dashboard/habits"
-            color="violet"
-          />
-        </section>
-
-        <CommunitySummary community={community} />
+        <MySocialSummary community={community} />
+        <RewardsTeaser rewards={rewards} />
       </div>
     </main>
   );
@@ -504,6 +491,18 @@ function PlanKicker({ index, icon, label, color }: { index: string; icon: React.
   );
 }
 
+function MySocialSummary({ community }: { community: CommunityOverview | null }) {
+  if (!community?.me) return null;
+  const social = community.me;
+  const profileHref = social.profile.nickname ? `/dashboard/community/${social.profile.nickname}` : "/dashboard/user";
+  const workout = social.lastWorkout ? `${social.lastWorkout.routineName} · ${social.lastWorkout.durationSeconds ? `${Math.max(1, Math.round(social.lastWorkout.durationSeconds / 60))} min` : "Entrenamiento registrado"}` : "Todavía no registraste entrenamientos.";
+  return <section className="mt-6 rounded-[30px] border border-[#b7ff00]/15 bg-[#10110e]/90 p-5 sm:p-7"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold tracking-[.2em] text-[#b7ff00]/70">TU PULSO SOCIAL</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">{social.profile.nickname ? `@${social.profile.nickname}` : social.profile.name}</h2><p className="mt-1 text-xs text-white/40">{social.friendCount} amigos · {social.publishedRoutineCount} rutinas públicas{social.unreadNotifications ? ` · ${social.unreadNotifications} novedades` : ""}</p></div><div className="flex gap-2"><Link href={profileHref} aria-label="Abrir mi perfil de Comunidad" title="Mi perfil de Comunidad" className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 text-white/65 hover:border-[#b7ff00]/40 hover:text-[#b7ff00]"><UserRound size={17}/></Link><Link href="/dashboard/community" aria-label="Abrir Modo Comunidad" title="Modo Comunidad" className="relative grid h-10 w-10 place-items-center rounded-xl border border-white/10 text-white/65 hover:border-[#b7ff00]/40 hover:text-[#b7ff00]"><Bell size={17}/>{social.unreadNotifications > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#b7ff00]"/>}</Link><Link href="/dashboard/community/library" aria-label="Abrir biblioteca de rutinas" title="Biblioteca" className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 text-white/65 hover:border-[#b7ff00]/40 hover:text-[#b7ff00]"><Library size={17}/></Link></div></div><div className="mt-5 grid gap-3 lg:grid-cols-3"><SocialTile icon={<MessageCircle size={16}/>} label="Último mensaje" detail={social.lastMessage ? `${social.lastMessage.author.nickname ? `@${social.lastMessage.author.nickname}` : social.lastMessage.author.name}: ${social.lastMessage.content}` : "No recibiste mensajes en tu perfil todavía."} date={social.lastMessage?.date}/><SocialTile icon={<UsersRound size={16}/>} label="Último post" detail={social.lastPost?.content || "Compartí un estado breve con tu comunidad."} date={social.lastPost?.date}/><SocialTile icon={<Dumbbell size={16}/>} label="Último entrenamiento" detail={workout} date={social.lastWorkout?.date}/></div><Link href="/dashboard/community" className="mt-5 inline-flex items-center gap-1.5 text-xs font-bold text-[#b7ff00] hover:text-white">Abrir Modo Comunidad <ArrowRight size={14}/></Link></section>;
+}
+
+function SocialTile({ icon, label, detail, date }: { icon: React.ReactNode; label: string; detail: string; date?: string }) { return <article className="min-w-0 rounded-2xl border border-white/[.07] bg-black/15 p-4"><div className="flex items-center justify-between gap-2 text-[#b7ff00]"><span>{icon}</span>{date && <span className="text-[10px] font-medium text-white/30">{new Date(date).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}</span>}</div><p className="mt-4 text-xs font-semibold text-white/65">{label}</p><p className="mt-1 line-clamp-2 text-sm leading-5 text-white/40">{detail}</p></article>; }
+
+// The compact social pulse above replaces this fuller section on Inicio.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CommunitySummary({ community }: { community: CommunityOverview | null }) {
   const connected = community?.friends.filter((friend) => friend.presence !== "OFFLINE") || [];
   const routines = community?.routines || [];
@@ -540,6 +539,8 @@ function CommunitySummary({ community }: { community: CommunityOverview | null }
   );
 }
 
+// The daily-plan cards supersede these secondary overview cards on Inicio.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function OverviewCard({ icon, eyebrow, title, value, detail, href, color }: { icon: React.ReactNode; eyebrow: string; title: string; value: string; detail: string; href: string; color: "lime" | "sky" | "violet" }) {
   const styles = {
     lime: "text-[#b7ff00] border-[#b7ff00]/20 bg-[#b7ff00]/[.06]",

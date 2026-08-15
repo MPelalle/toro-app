@@ -3,6 +3,10 @@ import "server-only";
 import { appCalendarDate, appDateKey, storedDateKey } from "@/lib/app-date";
 import { getPrisma } from "@/lib/prisma";
 import { ACTIVE_WORKOUT_WINDOW_MS, presenceStatus } from "@/lib/presence";
+import { getUserBadgeProfile } from "@/lib/user-badges";
+import { buildWorkoutProgress } from "@/lib/workout-progress";
+import { isSocialPostType } from "@/lib/social";
+import { importPublicRoutineToPersonal } from "@/lib/community-routine-library";
 
 export const FRIEND_LIMIT = 5;
 export const NICKNAME_PATTERN = /^[A-Za-z0-9._]{3,20}$/;
@@ -22,6 +26,11 @@ function pair(userId: string, otherUserId: string) {
 
 function friendshipWhere(userId: string) {
   return { status: "ACCEPTED" as const, OR: [{ userAId: userId }, { userBId: userId }] };
+}
+
+async function areAcceptedFriends(userId: string, otherUserId: string) {
+  const friendship = await getPrisma().friendship.findUnique({ where: { userAId_userBId: pair(userId, otherUserId) }, select: { status: true } });
+  return friendship?.status === "ACCEPTED";
 }
 
 export async function acceptedFriendCount(userId: string) {
@@ -153,7 +162,7 @@ export async function createSharedRoutine(userId: string, sourceRoutineId: strin
     return tx.routinePlan.create({
       data: {
         userId, updatedById: userId, name: routineName, type: source.type, kind: "SHARED", days: source.days === null ? [] : source.days,
-        exercises: { create: source.exercises.map((exercise) => ({ position: exercise.position, name: exercise.name, muscle: exercise.muscle, sets: exercise.sets, reps: exercise.reps, weight: exercise.weight, technique: exercise.technique, trainingDay: exercise.trainingDay, completed: null, actualReps: null, note: null })) },
+        exercises: { create: source.exercises.map((exercise) => ({ position: exercise.position, catalogExerciseId: exercise.catalogExerciseId, name: exercise.name, muscle: exercise.muscle, sets: exercise.sets, reps: exercise.reps, weight: exercise.weight, technique: exercise.technique, trainingDay: exercise.trainingDay, completed: null, actualReps: null, note: null })) },
         members: { create: [{ userId, role: "OWNER" }, ...memberIds.map((memberId) => ({ userId: memberId, role: "MEMBER" as const }))] },
       },
       include: { members: { include: { user: { select: { nickname: true, name: true } } } } },
@@ -196,6 +205,7 @@ export async function copySharedRoutineToPersonal(userId: string, sourceRoutineI
         exercises: {
           create: source.exercises.map((exercise) => ({
             position: exercise.position,
+            catalogExerciseId: exercise.catalogExerciseId,
             name: exercise.name,
             muscle: exercise.muscle,
             sets: exercise.sets,
@@ -212,6 +222,232 @@ export async function copySharedRoutineToPersonal(userId: string, sourceRoutineI
       select: { id: true, name: true, active: true },
     });
   }, { isolationLevel: "Serializable" });
+}
+
+export async function copyPublicRoutineToPersonal(viewerId: string, nicknameInput: string, routineId: string) {
+  const nickname = validateNickname(nicknameInput);
+  if (!nickname) throw new Error("Perfil no encontrado.");
+  const prisma = getPrisma();
+  const source = await prisma.routinePlan.findFirst({ where: { id: routineId, kind: "PERSONAL", isPublished: true, user: { nickname: { equals: nickname, mode: "insensitive" } } }, select: { id: true, userId: true } });
+  if (!source) throw new Error("No tenés acceso a esta rutina.");
+  return importPublicRoutineToPersonal(viewerId, source.id);
+}
+
+export async function createCommunityStatus(userId: string, contentInput: string) {
+  const content = contentInput.trim().replace(/\s+/g, " ");
+  if (!content || content.length > 280) throw new Error("El mensaje debe tener entre 1 y 280 caracteres.");
+  return getPrisma().communityStatus.create({ data: { userId, content }, select: { id: true, content: true, createdAt: true } });
+}
+
+export async function deleteCommunityStatus(userId: string, statusId: string) {
+  const deleted = await getPrisma().communityStatus.deleteMany({ where: { id: statusId, userId } });
+  return deleted.count > 0;
+}
+
+export async function createCommunityProfileMessage(authorId: string, nicknameInput: string, contentInput: string) {
+  const nickname = validateNickname(nicknameInput);
+  const content = contentInput.trim().replace(/\s+/g, " ");
+  if (!nickname || !content || content.length > 280) throw new Error("El mensaje debe tener entre 1 y 280 caracteres.");
+  const profileUser = await getPrisma().user.findFirst({ where: { nickname: { equals: nickname, mode: "insensitive" } }, select: { id: true, profileMessageAudience: true } });
+  if (!profileUser) throw new Error("Perfil no encontrado.");
+  if (profileUser.id === authorId) throw new Error("No podés dejarte un mensaje a vos mismo.");
+  if (profileUser.profileMessageAudience === "FRIENDS" && !(await areAcceptedFriends(authorId, profileUser.id))) throw new Error("Esta persona sólo recibe mensajes de sus amigos.");
+  return getPrisma().communityProfileMessage.create({
+    data: { authorId, profileUserId: profileUser.id, content },
+    select: { id: true, content: true, createdAt: true },
+  });
+}
+
+export async function deleteCommunityProfileMessage(userId: string, messageId: string) {
+  const deleted = await getPrisma().communityProfileMessage.deleteMany({ where: { id: messageId, OR: [{ authorId: userId }, { profileUserId: userId }] } });
+  return deleted.count > 0;
+}
+
+type CommunityRoutine = { id: string; name: string; type: string; days: string[]; exerciseCount: number; setCount: number };
+type CommunityBaseActivity =
+  | { id: string; type: "workout"; sourceType: "WORKOUT"; sourceId: string; date: string; routineName: string; durationSeconds: number; volume: number; exerciseCount: number }
+  | { id: string; type: "record"; sourceType: "RECORD"; sourceId: string; date: string; exercise: string; weight: number; reps: number }
+  | { id: string; type: "routine"; sourceType: "ROUTINE"; sourceId: string; date: string; routine: CommunityRoutine }
+  | { id: string; type: "status"; sourceType: "STATUS"; sourceId: string; date: string; content: string };
+
+const activityExerciseSelect = { name: true, muscle: true, sets: { select: { completed: true, weight: true, reps: true } } } as const;
+const activitySessionSelect = { id: true, userId: true, startedAt: true, finishedAt: true, updatedAt: true, durationSeconds: true, routine: { select: { name: true } }, exercises: { select: activityExerciseSelect } } as const;
+
+function workoutActivity(session: { id: string; startedAt: Date; finishedAt: Date | null; updatedAt: Date; durationSeconds: number | null; routine: { name: string }; exercises: Array<{ name: string; muscle: string; sets: Array<{ completed: boolean; weight: number | null; reps: number | null }> }> }): CommunityBaseActivity {
+  const completed = session.exercises.flatMap((exercise) => exercise.sets).filter((set) => set.completed && set.weight !== null && set.reps !== null);
+  return {
+    id: `workout:${session.id}`,
+    type: "workout",
+    sourceType: "WORKOUT",
+    sourceId: session.id,
+    date: (session.finishedAt || session.updatedAt).toISOString(),
+    routineName: session.routine.name,
+    durationSeconds: session.durationSeconds ?? Math.max(0, Math.floor(((session.finishedAt || session.updatedAt).getTime() - session.startedAt.getTime()) / 1_000)),
+    volume: Math.round(completed.reduce((total, set) => total + (set.weight || 0) * (set.reps || 0), 0)),
+    exerciseCount: session.exercises.length,
+  };
+}
+
+async function getCommunityProfileActivity(userId: string) {
+  const prisma = getPrisma();
+  const [sessions, routines, statuses] = await Promise.all([
+    prisma.workoutSession.findMany({
+      where: { userId, status: "FINISHED", finishedAt: { not: null } },
+      orderBy: { finishedAt: "asc" },
+      select: activitySessionSelect,
+    }),
+    prisma.routinePlan.findMany({
+      where: { userId, kind: "PERSONAL", isPublished: true },
+      orderBy: { publishedAt: "desc" },
+      take: 8,
+      select: { id: true, name: true, type: true, days: true, publishedAt: true, exercises: { select: { id: true, sets: true } } },
+    }),
+    prisma.communityStatus.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 12, select: { id: true, content: true, createdAt: true } }),
+  ]);
+
+  const progress = buildWorkoutProgress(sessions.map((session) => ({ id: session.id, finishedAt: session.finishedAt, updatedAt: session.updatedAt, exercises: session.exercises })));
+  const workouts = sessions.map(workoutActivity);
+  const records = progress.records.map((record) => {
+    const sourceId = `record:${record.date}:${record.exercise}`;
+    return { id: sourceId, type: "record" as const, sourceType: "RECORD" as const, sourceId, date: `${record.date}T12:00:00.000Z`, exercise: record.exercise, weight: record.weight, reps: record.reps };
+  });
+  const publishedRoutines = routines.map((routine) => ({ id: `routine:${routine.id}`, type: "routine" as const, sourceType: "ROUTINE" as const, sourceId: routine.id, date: (routine.publishedAt || new Date(0)).toISOString(), routine: { id: routine.id, name: routine.name, type: routine.type, days: Array.isArray(routine.days) ? routine.days.map(String) : [], exerciseCount: routine.exercises.length, setCount: routine.exercises.reduce((total, exercise) => total + exercise.sets, 0) } }));
+  const messages = statuses.map((status) => ({ id: `status:${status.id}`, type: "status" as const, sourceType: "STATUS" as const, sourceId: status.id, date: status.createdAt.toISOString(), content: status.content }));
+  const activity = [...workouts, ...records, ...publishedRoutines, ...messages].sort((left, right) => right.date.localeCompare(left.date)).slice(0, 24);
+  return { progress, routines: publishedRoutines.map((item) => item.routine), activity: activity as CommunityBaseActivity[] };
+}
+
+async function resolveRepostOriginals(reposts: Array<{ originalAuthorId: string; originalType: string; originalId: string }>) {
+  const prisma = getPrisma();
+  const valid = reposts.filter((repost) => isSocialPostType(repost.originalType));
+  const authorIds = [...new Set(valid.map((repost) => repost.originalAuthorId))];
+  if (!authorIds.length) return new Map<string, CommunityBaseActivity>();
+  const byType = (type: "WORKOUT" | "ROUTINE" | "STATUS") => valid.filter((repost) => repost.originalType === type);
+  const [sessions, routines, statuses] = await Promise.all([
+    prisma.workoutSession.findMany({ where: { id: { in: byType("WORKOUT").map((repost) => repost.originalId) }, userId: { in: authorIds } }, select: activitySessionSelect }),
+    prisma.routinePlan.findMany({ where: { id: { in: byType("ROUTINE").map((repost) => repost.originalId) }, userId: { in: authorIds }, kind: "PERSONAL", isPublished: true }, select: { id: true, name: true, type: true, days: true, publishedAt: true, exercises: { select: { id: true, sets: true } } } }),
+    prisma.communityStatus.findMany({ where: { id: { in: byType("STATUS").map((repost) => repost.originalId) }, userId: { in: authorIds } }, select: { id: true, content: true, createdAt: true } }),
+  ]);
+  const resolved = new Map<string, CommunityBaseActivity>();
+  for (const session of sessions) resolved.set(`WORKOUT:${session.id}`, workoutActivity(session));
+  for (const routine of routines) resolved.set(`ROUTINE:${routine.id}`, { id: `routine:${routine.id}`, type: "routine", sourceType: "ROUTINE", sourceId: routine.id, date: (routine.publishedAt || new Date(0)).toISOString(), routine: { id: routine.id, name: routine.name, type: routine.type, days: Array.isArray(routine.days) ? routine.days.map(String) : [], exerciseCount: routine.exercises.length, setCount: routine.exercises.reduce((total, exercise) => total + exercise.sets, 0) } });
+  for (const status of statuses) resolved.set(`STATUS:${status.id}`, { id: `status:${status.id}`, type: "status", sourceType: "STATUS", sourceId: status.id, date: status.createdAt.toISOString(), content: status.content });
+  // Un récord depende de todas las sesiones previas. Se consulta una vez por autor, se comparte entre
+  // sus reposts y conserva el cálculo histórico en vez de inferir una marca desde una sola sesión.
+  const recordAuthors = [...new Set(valid.filter((repost) => repost.originalType === "RECORD").map((repost) => repost.originalAuthorId))];
+  const recordActivities = await Promise.all(recordAuthors.map(async (authorId) => [authorId, await getCommunityProfileActivity(authorId)] as const));
+  for (const [authorId, activity] of recordActivities) {
+    for (const item of activity.activity) if (item.sourceType === "RECORD") resolved.set(`${authorId}:RECORD:${item.sourceId}`, item);
+  }
+  return resolved;
+}
+
+export async function createCommunityRepost(userId: string, nicknameInput: string, originalType: unknown, originalId: unknown) {
+  const nickname = validateNickname(nicknameInput);
+  if (!nickname || !isSocialPostType(originalType) || typeof originalId !== "string" || !originalId) throw new Error("Publicación inválida.");
+  const prisma = getPrisma();
+  const originalAuthor = await prisma.user.findFirst({ where: { nickname: { equals: nickname, mode: "insensitive" } }, select: { id: true } });
+  if (!originalAuthor || originalAuthor.id === userId) throw new Error("No podés repostear esta publicación.");
+  const source = (await getCommunityProfileActivity(originalAuthor.id)).activity.find((item) => item.sourceType === originalType && item.sourceId === originalId);
+  if (!source) throw new Error("La publicación original ya no está disponible.");
+
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.socialRepost.findUnique({ where: { userId_originalType_originalId: { userId, originalType, originalId } }, select: { id: true } });
+    if (existing) return { id: existing.id, created: false };
+    const repost = await tx.socialRepost.create({ data: { userId, originalAuthorId: originalAuthor.id, originalType, originalId }, select: { id: true } });
+    await tx.socialNotification.upsert({
+      where: { userId_actorId_type_targetId: { userId: originalAuthor.id, actorId: userId, type: "REPOST", targetId: `${originalType}:${originalId}` } },
+      update: { readAt: null, createdAt: new Date(), targetType: originalType },
+      create: { userId: originalAuthor.id, actorId: userId, type: "REPOST", targetType: originalType, targetId: `${originalType}:${originalId}` },
+    });
+    return { id: repost.id, created: true };
+  }, { isolationLevel: "Serializable" });
+}
+
+export async function deleteCommunityRepost(userId: string, repostId: string) {
+  const deleted = await getPrisma().socialRepost.deleteMany({ where: { id: repostId, userId } });
+  return deleted.count > 0;
+}
+
+export async function listSocialNotifications(userId: string) {
+  const notifications = await getPrisma().socialNotification.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    include: { actor: { select: { name: true, nickname: true, avatarUrl: true } } },
+  });
+  return notifications.map((notification) => ({ id: notification.id, type: notification.type, targetType: notification.targetType, createdAt: notification.createdAt.toISOString(), readAt: notification.readAt?.toISOString() ?? null, actor: { name: notification.actor.name || notification.actor.nickname || "Atleta", nickname: notification.actor.nickname, avatarUrl: notification.actor.avatarUrl } }));
+}
+
+/** Compact private snapshot used by the signed-in athlete's dashboard. */
+export async function getMyCommunitySummary(userId: string) {
+  const prisma = getPrisma();
+  const [user, lastMessage, unreadNotifications, friends, publishedRoutines, lastWorkout, lastPost] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { name: true, nickname: true, avatarUrl: true } }),
+    prisma.communityProfileMessage.findFirst({ where: { profileUserId: userId }, orderBy: { createdAt: "desc" }, include: { author: { select: { name: true, nickname: true } } } }),
+    prisma.socialNotification.count({ where: { userId, readAt: null } }),
+    acceptedFriendCount(userId),
+    prisma.routinePlan.count({ where: { userId, kind: "PERSONAL", isPublished: true } }),
+    prisma.workoutSession.findFirst({ where: { userId, status: "FINISHED", finishedAt: { not: null } }, orderBy: { finishedAt: "desc" }, select: { finishedAt: true, updatedAt: true, durationSeconds: true, routine: { select: { name: true } } } }),
+    prisma.communityStatus.findFirst({ where: { userId }, orderBy: { createdAt: "desc" }, select: { content: true, createdAt: true } }),
+  ]);
+  return {
+    profile: { name: user?.name || user?.nickname || "Atleta", nickname: user?.nickname || null, avatarUrl: user?.avatarUrl || null },
+    friendCount: friends,
+    publishedRoutineCount: publishedRoutines,
+    unreadNotifications,
+    lastWorkout: lastWorkout ? { routineName: lastWorkout.routine.name, date: (lastWorkout.finishedAt || lastWorkout.updatedAt).toISOString(), durationSeconds: lastWorkout.durationSeconds || 0, volume: 0 } : null,
+    lastPost: lastPost ? { content: lastPost.content, date: lastPost.createdAt.toISOString() } : null,
+    lastMessage: lastMessage ? { content: lastMessage.content, date: lastMessage.createdAt.toISOString(), author: { name: lastMessage.author.name || lastMessage.author.nickname || "Atleta", nickname: lastMessage.author.nickname } } : null,
+  };
+}
+
+export async function markSocialNotificationsRead(userId: string) {
+  await getPrisma().socialNotification.updateMany({ where: { userId, readAt: null }, data: { readAt: new Date() } });
+}
+
+export async function getCommunityProfile(viewerId: string, nicknameInput: string) {
+  const nickname = validateNickname(nicknameInput);
+  if (!nickname) return null;
+  const prisma = getPrisma();
+  const user = await prisma.user.findFirst({
+    where: { nickname: { equals: nickname, mode: "insensitive" } },
+    select: { id: true, name: true, nickname: true, avatarUrl: true, bio: true, profileMessageAudience: true, createdAt: true },
+  });
+  // A valid Community profile is discoverable for any authenticated user. Publishing
+  // a message is controlled separately by the owner's audience preference.
+  if (!user || !user.nickname) return null;
+
+  const [base, badgeProfile, reposts, profileMessages, canPostMessage] = await Promise.all([
+    getCommunityProfileActivity(user.id),
+    getUserBadgeProfile(user.id, user.name || user.nickname || "Atleta", { trackActivity: false }),
+    prisma.socialRepost.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      take: 24,
+      include: { originalAuthor: { select: { id: true, name: true, nickname: true, avatarUrl: true } } },
+    }),
+    prisma.communityProfileMessage.findMany({ where: { profileUserId: user.id }, orderBy: { createdAt: "desc" }, take: 30, include: { author: { select: { id: true, name: true, nickname: true } } } }),
+    user.id === viewerId ? Promise.resolve(false) : user.profileMessageAudience === "ANYONE" ? Promise.resolve(true) : areAcceptedFriends(viewerId, user.id),
+  ]);
+  const originals = await resolveRepostOriginals(reposts);
+  const repostActivity = reposts.flatMap((repost) => {
+    const original = isSocialPostType(repost.originalType) ? (repost.originalType === "RECORD" ? originals.get(`${repost.originalAuthorId}:RECORD:${repost.originalId}`) : originals.get(`${repost.originalType}:${repost.originalId}`)) : null;
+    return original ? [{ id: `repost:${repost.id}`, type: "repost" as const, date: repost.createdAt.toISOString(), originalAuthor: { name: repost.originalAuthor.name || repost.originalAuthor.nickname || "Atleta", nickname: repost.originalAuthor.nickname, avatarUrl: repost.originalAuthor.avatarUrl }, original }] : [];
+  });
+  const activity = [...base.activity, ...repostActivity].sort((left, right) => right.date.localeCompare(left.date)).slice(0, 24);
+
+  return {
+    isOwnProfile: user.id === viewerId,
+    user: { name: user.name || user.nickname, nickname: user.nickname, avatarUrl: user.avatarUrl, bio: user.bio, joinedAt: user.createdAt.toISOString() },
+    stats: { workouts: base.progress.summary.sessions, volume: base.progress.summary.volume, records: base.progress.summary.records },
+    badges: badgeProfile.badges,
+    records: base.progress.records.slice(0, 6),
+    routines: base.routines,
+    activity,
+    canPostMessage,
+    messages: profileMessages.map((message) => ({ id: message.id, content: message.content, createdAt: message.createdAt.toISOString(), canDelete: message.authorId === viewerId || message.profileUserId === viewerId, author: { id: message.author.id, name: message.author.name || message.author.nickname || "Atleta", nickname: message.author.nickname } })),
+  };
 }
 
 export async function createSharedDiet(userId: string, sourceDietId: string, friendIds: string[], name?: string) {

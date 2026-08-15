@@ -15,7 +15,7 @@ function isCurrentWorkoutSession(session: WorkoutSessionRow) {
   return session.status === "IN_PROGRESS" && Number.isFinite(startedAt) && startedAt <= Date.now() && Date.now() - startedAt < ACTIVE_WORKOUT_MAX_AGE_MS;
 }
 
-function nowMetadata(id: string, now: string, status: SyncStatus): Omit<OfflineWorkoutSession, "routineId" | "status" | "startedAt" | "finishedAt" | "durationSeconds" | "notes" | "emotionalRating" | "clientUpdatedAt" | "exercises"> {
+function nowMetadata(id: string, now: string, status: SyncStatus): Omit<OfflineWorkoutSession, "routineId" | "status" | "startedAt" | "finishedAt" | "durationSeconds" | "notes" | "emotionalRating" | "emotionalState" | "clientUpdatedAt" | "exercises"> {
   return { id, userId: LEGACY_LOCAL_USER_ID, createdAt: now, updatedAt: now, deletedAt: null, syncStatus: status, lastSyncedAt: null, version: 1 };
 }
 
@@ -26,6 +26,7 @@ function makeSessionExercise(exercise: RoutineExercise, position: number, sessio
     ...base,
     sessionId,
     routineExerciseId: exercise.id,
+    catalogExerciseId: exercise.catalogExerciseId ?? null,
     position,
     name: exercise.name,
     muscle: exercise.muscle,
@@ -59,6 +60,7 @@ export function createLocalWorkoutSession(routine: Routine): OfflineWorkoutSessi
     durationSeconds: null,
     notes: null,
     emotionalRating: null,
+    emotionalState: null,
     clientUpdatedAt: now,
     exercises: routine.exercises.map((exercise, position) => makeSessionExercise(exercise, position, id, now)),
   };
