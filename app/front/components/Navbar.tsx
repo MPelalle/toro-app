@@ -37,6 +37,7 @@ export default function ToroBottomNav() {
       ===================================================== */}
       <div
         className="
+          toro-bottom-nav__veil
           pointer-events-none
           fixed
           inset-x-0
@@ -55,6 +56,7 @@ export default function ToroBottomNav() {
       ===================================================== */}
       <div
         className="
+          toro-bottom-nav
           fixed
           inset-x-0
           bottom-5
@@ -85,6 +87,7 @@ export default function ToroBottomNav() {
         ================================================= */}
         <div
           className="
+            toro-bottom-nav__center
             relative
             flex
             h-14.5
@@ -174,7 +177,9 @@ function SideButton({
     <Link
       href={href}
       aria-label={label}
+      data-active={active || undefined}
       className={`
+        toro-bottom-nav__side
         group
         relative
         z-10
@@ -262,7 +267,9 @@ function CenterButton({
     <Link
       href={href}
       aria-label={label}
+      data-active={active || undefined}
       className="
+        toro-bottom-nav__item
         group
         relative
         z-10

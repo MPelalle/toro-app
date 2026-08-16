@@ -225,6 +225,31 @@ html[data-theme="light"] .input { border-color: rgba(22, 25, 20, .16); backgroun
 html[data-theme="light"] .input::placeholder { color: rgba(22, 25, 20, .45); }
 html[data-theme="light"] .input option { background: #ffffff; color: #161914; }
 
+/* La navegación inferior conserva su jerarquía visual en tema claro: una
+   superficie blanca translúcida, íconos oscuros y el acento lima activo. */
+html[data-theme="light"] .toro-bottom-nav__veil {
+  background-image: linear-gradient(to top, #f3f5ed 0%, rgba(243, 245, 237, .82) 45%, transparent 100%);
+}
+html[data-theme="light"] .toro-bottom-nav__center,
+html[data-theme="light"] .toro-bottom-nav__side {
+  border-color: rgba(22, 25, 20, .12) !important;
+  background-color: rgba(255, 255, 255, .9) !important;
+  box-shadow: 0 14px 36px rgba(41, 49, 32, .16) !important;
+}
+html[data-theme="light"] .toro-bottom-nav__side[data-active="true"] {
+  border-color: rgba(126, 180, 0, .34) !important;
+  background-color: rgba(183, 255, 0, .18) !important;
+  box-shadow: 0 10px 28px rgba(126, 180, 0, .18) !important;
+}
+html[data-theme="light"] .toro-bottom-nav__item[data-active="true"] > span:first-child {
+  background-color: rgba(183, 255, 0, .2);
+  box-shadow: 0 0 18px rgba(126, 180, 0, .16);
+}
+html[data-theme="light"] .toro-bottom-nav__side:not([data-active]) > span:first-child,
+html[data-theme="light"] .toro-bottom-nav__item:not([data-active]) > span:nth-child(2) {
+  color: rgba(22, 25, 20, .58) !important;
+}
+
 .toro-auth-page {
   position: relative;
   display: grid;
