@@ -24,7 +24,7 @@ export const viewport: Viewport = { themeColor: "#090a08", colorScheme: "dark li
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="es" className={`${inter.variable} ${montserrat.variable} h-full antialiased`} suppressHydrationWarning>
-      <script dangerouslySetInnerHTML={{ __html: "try { const theme = localStorage.getItem('toro-theme'); if (theme === 'light') { document.documentElement.dataset.theme = 'light'; document.documentElement.style.colorScheme = 'light'; } } catch {}" }} />
+      <script dangerouslySetInnerHTML={{ __html: "try { const theme = localStorage.getItem('toro-theme') === 'light' ? 'light' : 'dark'; document.documentElement.dataset.theme = theme; document.documentElement.style.colorScheme = theme; } catch {}" }} />
       <body className="w-full" suppressHydrationWarning><PwaRegister />{children}</body>
     </html>
   );

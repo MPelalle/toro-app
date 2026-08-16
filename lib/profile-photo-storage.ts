@@ -11,7 +11,9 @@ type StorageConfig = {
 };
 
 export function getProfilePhotoStorageConfig(): StorageConfig | null {
-  const rawUrl = process.env.SUPABASE_URL?.trim();
+  // Existing Supabase projects often expose this URL with the public prefix.
+  // The service key below remains server-only.
+  const rawUrl = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)?.trim();
   const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY)?.trim();
   const bucket = (process.env.SUPABASE_STORAGE_BUCKET || DEFAULT_BUCKET).trim();
   if (!rawUrl || !serviceKey || !/^[a-z0-9][a-z0-9-]{1,62}$/i.test(bucket)) return null;
@@ -68,4 +70,26 @@ export function profilePhotoObjectUrl(config: StorageConfig, objectPath: string)
 
 export function profilePhotoUploadUrl(config: StorageConfig, objectPath: string) {
   return new URL(`/storage/v1/object/${config.bucket}/${objectPath}`, config.url).toString();
+}
+
+/** Provision the public profile-photo bucket on its first use. */
+export async function ensureProfilePhotoBucket(config: StorageConfig) {
+  const response = await fetch(new URL(`/storage/v1/bucket/${config.bucket}`, config.url), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.serviceKey}`,
+      apikey: config.serviceKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      id: config.bucket,
+      name: config.bucket,
+      public: true,
+      file_size_limit: 650 * 1024,
+      allowed_mime_types: ["image/jpeg"],
+    }),
+  });
+
+  // 409 means a previous request already created it.
+  return response.ok || response.status === 409;
 }

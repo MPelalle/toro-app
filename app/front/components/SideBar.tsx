@@ -128,7 +128,7 @@ export default function ToroSidebar({
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
-    document.documentElement.dataset.theme = next === "light" ? "light" : "";
+    document.documentElement.dataset.theme = next;
     document.documentElement.style.colorScheme = next;
     window.localStorage.setItem("toro-theme", next);
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", next === "light" ? "#f3f5ed" : "#090a08");

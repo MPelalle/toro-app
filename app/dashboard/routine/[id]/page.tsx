@@ -9,6 +9,7 @@ import { createClientId, createWorkoutSession, getActiveWorkoutSession, getRecen
 import { getRoutineOfflineFirst, Routine } from "@/lib/routines";
 import { buildExerciseCoaching, buildSessionFeedback, type ExerciseCoaching, type PersonalRecord, type SessionFeedback } from "@/lib/training-coach";
 import { ExerciseVideoModal } from "@/components/workout/ExerciseVideoModal";
+import { PlateCalculator } from "@/components/workout/PlateCalculator";
 
 const ShareWorkoutButton = dynamic(() => import("@/components/workout/share/ShareWorkoutButton").then((module) => module.ShareWorkoutButton), { ssr: false });
 const PostWorkoutFlow = dynamic(() => import("@/components/workout/PostWorkoutFlow").then((module) => module.PostWorkoutFlow), { ssr: false });
@@ -322,6 +323,7 @@ export default function RoutineDetailPage() {
                   <option value={60}>1:00</option><option value={90}>1:30</option><option value={120}>2:00</option><option value={180}>3:00</option>
                 </select>
                 <button type="button" onClick={() => startRest()} className="inline-flex items-center gap-2 rounded-xl border border-sky-300/25 px-3 py-2 text-xs text-sky-200"><TimerReset size={14} /> Iniciar descanso</button>
+                <PlateCalculator />
                 {restUntil && <button type="button" onClick={() => setRestUntil(null)} className="text-xs text-white/45">Cancelar</button>}
               </div>}
             </div>

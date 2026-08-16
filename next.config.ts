@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 function supabaseStorageOrigin() {
-  try { return process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).origin : ""; }
+  try {
+    const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    return url ? new URL(url).origin : "";
+  }
   catch { return ""; }
 }
 
