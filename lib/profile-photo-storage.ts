@@ -97,11 +97,18 @@ export function profilePhotoUploadUrl(config: StorageConfig, objectPath: string)
 
 /** Provision the public profile-photo bucket on its first use. */
 export async function ensureProfilePhotoBucket(config: StorageConfig) {
-  const response = await fetch(new URL(`/storage/v1/bucket/${config.bucket}`, config.url), {
+  const headers = {
+    Authorization: `Bearer ${config.serviceKey}`,
+    apikey: config.serviceKey,
+  };
+  const existing = await fetch(new URL(`/storage/v1/bucket/${config.bucket}`, config.url), { headers });
+  if (existing.ok) return true;
+  if (existing.status !== 404) return false;
+
+  const response = await fetch(new URL("/storage/v1/bucket", config.url), {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${config.serviceKey}`,
-      apikey: config.serviceKey,
+      ...headers,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -113,6 +120,6 @@ export async function ensureProfilePhotoBucket(config: StorageConfig) {
     }),
   });
 
-  // 409 means a previous request already created it.
+  // A concurrent request may have created the bucket after the check above.
   return response.ok || response.status === 409;
 }
