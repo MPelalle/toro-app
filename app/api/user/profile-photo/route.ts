@@ -1,7 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { getPrisma } from "@/lib/prisma";
-import { ensureProfilePhotoBucket, getProfilePhotoStorageConfig, profilePhotoObjectUrl, profilePhotoUploadUrl } from "@/lib/profile-photo-storage";
+import { ensureProfilePhotoBucket, getProfilePhotoStorageConfig, getProfilePhotoStorageConfigIssue, profilePhotoObjectUrl, profilePhotoUploadUrl } from "@/lib/profile-photo-storage";
 import { hasTrustedOrigin, originError } from "@/lib/security";
 
 const MAX_UPLOAD_BYTES = 650 * 1024;
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   if (!user) return Response.json({ error: "No autorizado" }, { status: 401 });
 
   const config = getProfilePhotoStorageConfig();
-  if (!config) return Response.json({ error: "La subida de fotos requiere SUPABASE_URL (o NEXT_PUBLIC_SUPABASE_URL) y SUPABASE_SERVICE_ROLE_KEY en el servidor." }, { status: 503 });
+  if (!config) return Response.json({ error: getProfilePhotoStorageConfigIssue() || "La configuración de Supabase para fotos no es válida." }, { status: 503 });
 
   const contentLength = Number(request.headers.get("content-length") || 0);
   if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) return Response.json({ error: "La foto es demasiado grande." }, { status: 413 });

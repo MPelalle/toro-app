@@ -10,21 +10,44 @@ type StorageConfig = {
   bucket: string;
 };
 
-export function getProfilePhotoStorageConfig(): StorageConfig | null {
-  // Existing Supabase projects often expose this URL with the public prefix.
-  // The service key below remains server-only.
-  const rawUrl = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)?.trim();
-  const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY)?.trim();
-  const bucket = (process.env.SUPABASE_STORAGE_BUCKET || DEFAULT_BUCKET).trim();
-  if (!rawUrl || !serviceKey || !/^[a-z0-9][a-z0-9-]{1,62}$/i.test(bucket)) return null;
+function readEnvironmentValue(...names: string[]) {
+  for (const name of names) {
+    const rawValue = process.env[name]?.trim();
+    if (!rawValue) continue;
+    // Deployment dashboards expect values without quotes, but accepting a
+    // pasted quoted value avoids rejecting otherwise valid credentials.
+    return rawValue.replace(/^(?:"|')|(?:"|')$/g, "").trim();
+  }
+  return "";
+}
+
+type StorageConfigResult = { config: StorageConfig; issue: null } | { config: null; issue: string };
+
+function resolveProfilePhotoStorageConfig(): StorageConfigResult {
+  // Existing Supabase projects use different names for the project URL and
+  // service key. Never accept an anon key here: uploading requires a secret.
+  const rawUrl = readEnvironmentValue("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_PROJECT_URL");
+  const serviceKey = readEnvironmentValue("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_KEY");
+  const bucket = readEnvironmentValue("SUPABASE_STORAGE_BUCKET") || DEFAULT_BUCKET;
+  if (!rawUrl) return { config: null, issue: "No se recibió la URL de Supabase en el servidor." };
+  if (!serviceKey) return { config: null, issue: "No se recibió una clave de servicio de Supabase en el servidor." };
+  if (!/^[a-z0-9][a-z0-9-]{1,62}$/i.test(bucket)) return { config: null, issue: "El nombre del bucket de fotos no es válido." };
 
   try {
     const url = new URL(rawUrl);
-    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
-    return { url, serviceKey, bucket };
+    if (url.protocol !== "https:" && url.protocol !== "http:") return { config: null, issue: "La URL de Supabase debe comenzar con https://." };
+    return { config: { url, serviceKey, bucket }, issue: null };
   } catch {
-    return null;
+    return { config: null, issue: "La URL de Supabase no es válida." };
   }
+}
+
+export function getProfilePhotoStorageConfig(): StorageConfig | null {
+  return resolveProfilePhotoStorageConfig().config;
+}
+
+export function getProfilePhotoStorageConfigIssue() {
+  return resolveProfilePhotoStorageConfig().issue;
 }
 
 export function isManagedProfilePhotoUrl(value: unknown) {
