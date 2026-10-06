@@ -20,10 +20,14 @@ function LoginForm() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState(searchParams.get("error") ?? "");
   const [pending, setPending] = useState(false);
+  const [canResendVerification, setCanResendVerification] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setCanResendVerification(false);
+    setResendMessage("");
     setPending(true);
     try {
       const response = await fetch("/api/auth/login", {
@@ -33,8 +37,10 @@ function LoginForm() {
         body: JSON.stringify({ email, pin }),
       });
       const data = await response.json();
-      if (!response.ok)
+      if (!response.ok) {
+        if (response.status === 403) setCanResendVerification(true);
         throw new Error(data.error || "No pudimos iniciar sesión.");
+      }
       window.location.assign(data.redirectTo);
     } catch (requestError) {
       setError(
@@ -44,6 +50,27 @@ function LoginForm() {
       );
     } finally {
       setPending(false);
+    }
+  }
+
+  async function resendVerification() {
+    setResendMessage("");
+    try {
+      const response = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(data.error || "No pudimos reenviar el correo.");
+      setResendMessage(data.message || "Revisá tu correo para continuar.");
+    } catch (requestError) {
+      setResendMessage(
+        requestError instanceof Error
+          ? requestError.message
+          : "No pudimos reenviar el correo.",
+      );
     }
   }
 
@@ -98,6 +125,22 @@ function LoginForm() {
             <p role="alert" className="toro-form-error">
               {error}
             </p>
+          )}
+          {canResendVerification && (
+            <div className="space-y-2 text-center">
+              <button
+                type="button"
+                onClick={() => void resendVerification()}
+                className="text-xs font-bold text-[#b7ff00] hover:underline"
+              >
+                Reenviar correo de confirmación
+              </button>
+              {resendMessage && (
+                <p role="status" className="toro-form-success">
+                  {resendMessage}
+                </p>
+              )}
+            </div>
           )}
           <button disabled={pending} className="toro-primary-button">
             {pending ? (
