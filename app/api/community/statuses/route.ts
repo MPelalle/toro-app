@@ -1,14 +1,23 @@
 import { getCurrentUser } from "@/lib/auth";
 import { createCommunityStatus, deleteCommunityStatus } from "@/lib/community";
-import { hasTrustedOrigin, isUuid, originError } from "@/lib/security";
+import { ensureStatusActivity } from "@/lib/social-activity";
+import { SOCIAL_LIMITS } from "@/lib/social-policy";
+import { hasTrustedOrigin, isUuid, originError, rateLimit, rateLimitByKey, rateLimitResponse } from "@/lib/security";
 
 export async function POST(request: Request) {
   if (!hasTrustedOrigin(request)) return originError();
+  const requestLimit = rateLimit(request, "social-status-ip", SOCIAL_LIMITS.statusesPerFifteenMinutes, 15 * 60_000);
+  if (!requestLimit.ok) return rateLimitResponse(requestLimit.retryAfter);
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "No autorizado" }, { status: 401 });
+  const userLimit = rateLimitByKey(user.id, "social-status", SOCIAL_LIMITS.statusesPerFifteenMinutes, 15 * 60_000);
+  if (!userLimit.ok) return rateLimitResponse(userLimit.retryAfter);
   const body = await request.json().catch(() => null);
   try {
-    return Response.json(await createCommunityStatus(user.id, String(body?.content || "")), { status: 201 });
+    const status = await createCommunityStatus(user.id, String(body?.content || ""));
+    // The original post must remain durable even if its feed projection fails.
+    void ensureStatusActivity(status.id).catch(() => undefined);
+    return Response.json(status, { status: 201 });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "No se pudo publicar el mensaje." }, { status: 400 });
   }

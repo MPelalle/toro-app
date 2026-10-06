@@ -113,6 +113,7 @@ function LoginForm() {
           ¿Todavía no tenés una cuenta?{" "}
           <Link href="/sign-in">Crear cuenta</Link>
         </p>
+        <p className="mt-3 text-center text-xs"><Link href="/forgot-pin" className="text-[#b7ff00] hover:underline">Olvidé mi PIN</Link></p>
         <p className="mt-4 text-center text-xs leading-5 text-white/35">
           Para entrar, primero confirmá el enlace enviado a tu correo.
         </p>

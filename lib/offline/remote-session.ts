@@ -20,7 +20,7 @@ type RemoteWorkoutSet = {
 export type RemoteWorkoutSession = {
   id: string;
   userId: string;
-  routineId: string;
+  routineId: string | null;
   status: "IN_PROGRESS" | "FINISHED";
   startedAt: Date;
   finishedAt: Date | null;
@@ -34,16 +34,23 @@ export type RemoteWorkoutSession = {
   updatedAt: Date;
   exercises: Array<{
     id: string;
-    routineExerciseId: string;
+    routineExerciseId: string | null;
     catalogExerciseId: string | null;
     position: number;
     name: string;
     muscle: string;
+    restSeconds?: number | null;
+    supersetGroupId?: string | null;
     sets: RemoteWorkoutSet[];
   }>;
 };
 
-function metadata(id: string, userId: string, createdAt: Date, updatedAt: Date) {
+function metadata(
+  id: string,
+  userId: string,
+  createdAt: Date,
+  updatedAt: Date,
+) {
   return {
     id,
     userId,
@@ -57,13 +64,22 @@ function metadata(id: string, userId: string, createdAt: Date, updatedAt: Date) 
 }
 
 function setKind(kind: string): OfflineWorkoutSet["kind"] {
-  return kind === "WARMUP" || kind === "DROP" || kind === "FAILURE" ? kind : "NORMAL";
+  return kind === "WARMUP" || kind === "DROP" || kind === "FAILURE"
+    ? kind
+    : "NORMAL";
 }
 
 /** Serializes server sessions into the same shape used by the IndexedDB repository. */
-export function serializeRemoteWorkoutSession(session: RemoteWorkoutSession): OfflineWorkoutSession {
+export function serializeRemoteWorkoutSession(
+  session: RemoteWorkoutSession,
+): OfflineWorkoutSession {
   return {
-    ...metadata(session.id, session.userId, session.createdAt, session.updatedAt),
+    ...metadata(
+      session.id,
+      session.userId,
+      session.createdAt,
+      session.updatedAt,
+    ),
     version: session.version,
     routineId: session.routineId,
     status: session.status,
@@ -72,16 +88,25 @@ export function serializeRemoteWorkoutSession(session: RemoteWorkoutSession): Of
     durationSeconds: session.durationSeconds,
     notes: session.notes,
     emotionalRating: session.emotionalRating,
-    emotionalState: isWorkoutEmotionalState(session.emotionalState) ? session.emotionalState : null,
+    emotionalState: isWorkoutEmotionalState(session.emotionalState)
+      ? session.emotionalState
+      : null,
     clientUpdatedAt: session.clientUpdatedAt.toISOString(),
     exercises: session.exercises.map((exercise) => ({
-      ...metadata(exercise.id, session.userId, session.createdAt, session.updatedAt),
+      ...metadata(
+        exercise.id,
+        session.userId,
+        session.createdAt,
+        session.updatedAt,
+      ),
       sessionId: session.id,
       routineExerciseId: exercise.routineExerciseId,
       catalogExerciseId: exercise.catalogExerciseId,
       position: exercise.position,
       name: exercise.name,
       muscle: exercise.muscle,
+      restSeconds: exercise.restSeconds ?? null,
+      supersetGroupId: exercise.supersetGroupId ?? null,
       sets: exercise.sets.map((set) => ({
         ...metadata(set.id, session.userId, set.createdAt, set.updatedAt),
         sessionId: session.id,

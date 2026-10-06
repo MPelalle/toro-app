@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { FormEvent, useState } from "react";
 import { ArrowRight, AtSign, LockKeyhole, Mail } from "lucide-react";
+import { USERNAME_HINT, USERNAME_PATTERN } from "@/lib/username";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -18,8 +19,8 @@ export default function RegisterPage() {
     event.preventDefault();
     setError("");
     setMessage("");
-    if (!/^\d{6}$/.test(formData.pin))
-      return setError("El PIN debe tener exactamente 6 números.");
+    if (!USERNAME_PATTERN.test(formData.username.trim()) || !/^\d{6}$/.test(formData.pin))
+      return setError(!USERNAME_PATTERN.test(formData.username.trim()) ? USERNAME_HINT : "El PIN debe tener exactamente 6 números.");
     setPending(true);
     try {
       const response = await fetch("/api/auth/register", {
@@ -77,9 +78,9 @@ export default function RegisterPage() {
             </span>
             <input
               autoComplete="username"
-              pattern="[a-zA-Z0-9._-]{3,30}"
+              pattern="[a-zA-Z0-9._-]{3,20}"
               minLength={3}
-              maxLength={30}
+              maxLength={20}
               required
               value={formData.username}
               onChange={(event) =>

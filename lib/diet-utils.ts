@@ -1,5 +1,6 @@
 import type { Diet, DietGoal, DietMeal, Sex } from "@/lib/diet-types";
 import { appDateKey } from "@/lib/app-date";
+import { initialCalorieAdjustment, minimumCaloriesFor } from "@/lib/nutrition-rules";
 
 export const goalLabels: Record<DietGoal, string> = {
   lose: "Bajar de peso",
@@ -23,8 +24,8 @@ export function calculateDiet(input: {
   const { sex, age, weight, height, activity, goal, mealsPerDay } = input;
   const bmr = 10 * weight + 6.25 * height - 5 * age + (sex === "male" ? 5 : -161);
   const tdee = round(bmr * activity, 5);
-  const adjustment = goal === "lose" ? -450 : goal === "gain" ? 300 : 0;
-  const calories = Math.max(1200, round(tdee + adjustment, 5));
+  const adjustment = initialCalorieAdjustment(age, goal);
+  const calories = Math.max(minimumCaloriesFor(age, sex), round(tdee + adjustment, 5));
   const protein = round(weight * (goal === "lose" ? 2 : 1.8), 5);
   const fats = round(Math.max(weight * 0.8, (calories * 0.25) / 9), 5);
   const carbs = round(Math.max(0, (calories - protein * 4 - fats * 9) / 4), 5);

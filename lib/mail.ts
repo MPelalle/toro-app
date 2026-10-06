@@ -76,3 +76,17 @@ export async function sendVerificationEmail(email: string, verificationUrl: stri
 </html>`,
   });
 }
+
+export async function sendPinResetEmail(email: string, resetUrl: string) {
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM } = process.env;
+  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASSWORD || !SMTP_FROM) throw new Error("SMTP no está configurado.");
+  const url = new URL(resetUrl);
+  if (!['http:', 'https:'].includes(url.protocol) || !url.searchParams.get("token")) throw new Error("El enlace de recuperación no es válido.");
+  const transporter = nodemailer.createTransport({ host: SMTP_HOST, port: Number(SMTP_PORT), secure: Number(SMTP_PORT) === 465, auth: { user: SMTP_USER, pass: SMTP_PASSWORD } });
+  const safeUrl = escapeHtml(url.toString());
+  await transporter.sendMail({
+    from: SMTP_FROM, to: email, subject: "Restablecé tu PIN de TORO",
+    text: `Recibimos una solicitud para restablecer tu PIN de TORO. Abrí este enlace: ${url.toString()}\n\nVence en 30 minutos. Si no la solicitaste, ignorá este correo.`,
+    html: `<!doctype html><html lang="es"><body style="margin:0;padding:32px;background:#f3f5f1;font-family:Arial,sans-serif;color:#1a1e18"><main style="max-width:560px;margin:auto;border-radius:20px;overflow:hidden;background:#fff"><header style="padding:28px 36px;background:#10140e"><strong style="color:#b7ff00;letter-spacing:2px">TORO</strong><h1 style="color:#fff;margin:10px 0 0;font-size:26px">Restablecé tu PIN</h1></header><section style="padding:36px"><p>Recibimos una solicitud para crear un PIN nuevo.</p><p style="margin:28px 0"><a href="${safeUrl}" style="display:inline-block;padding:14px 22px;border-radius:10px;background:#b7ff00;color:#10140e;font-weight:bold;text-decoration:none">Crear PIN nuevo</a></p><p style="color:#596256;font-size:13px">El enlace vence en 30 minutos y se puede usar una sola vez. Si no solicitaste este cambio, ignorá este correo.</p></section></main></body></html>`,
+  });
+}

@@ -25,10 +25,10 @@ const days = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const seriesOptions = [2, 3, 4, 5, 6];
 const repsOptions = [6, 8, 10, 12, 15, 20];
 const templates = [
-  { name: "Fullbody esencial", description: "Una base simple para entrenar todo el cuerpo.", days: ["Lun", "Mié", "Vie"], exercises: ["sentadilla_barra", "press_banca_barra", "remo_barra", "press_militar_barra"] },
-  { name: "Push / Pull / Legs", description: "Separá empuje, tirón y piernas a tu ritmo.", days: ["Lun", "Mar", "Mié", "Vie", "Sáb"], exercises: ["press_inclinado_barra", "aperturas_mancuernas", "fondos_pecho", "elevaciones_laterales_mancuernas"] },
-  { name: "Torso / Pierna", description: "Alterná torso y piernas con una estructura equilibrada.", days: ["Lun", "Mar", "Jue", "Vie"], exercises: ["press_banca_barra", "dominadas_pronas", "sentadilla_barra", "peso_muerto_rumano"] },
-];
+  { name: "Fullbody esencial", description: "Una base simple para entrenar todo el cuerpo.", days: ["Lun", "Mié", "Vie"], exercisesByDay: { Lun: ["sentadilla_barra", "press_banca_barra", "remo_barra", "press_militar_barra"], Mié: ["peso_muerto_rumano", "press_inclinado_barra", "jalon_al_pecho"], Vie: ["prensa_45", "fondos_pecho", "remo_mancuerna", "curl_mancuernas"] } },
+  { name: "Push / Pull / Legs", description: "Separá empuje, tirón y piernas a tu ritmo.", days: ["Lun", "Mar", "Mié", "Vie", "Sáb"], exercisesByDay: { Lun: ["press_inclinado_barra", "aperturas_mancuernas", "press_militar_barra", "extension_triceps_polea"], Mar: ["dominadas_pronas", "remo_barra", "curl_barra", "encogimientos_barra"], Mié: ["sentadilla_barra", "peso_muerto_rumano", "extension_cuadriceps", "gemelos_de_pie"], Vie: ["press_banca_barra", "elevaciones_laterales_mancuernas", "fondos_triceps"], Sáb: ["jalon_al_pecho", "remo_mancuerna", "curl_martillo"] } },
+  { name: "Torso / Pierna", description: "Alterná torso y piernas con una estructura equilibrada.", days: ["Lun", "Mar", "Jue", "Vie"], exercisesByDay: { Lun: ["press_banca_barra", "dominadas_pronas", "remo_barra", "press_militar_barra"], Mar: ["sentadilla_barra", "peso_muerto_rumano", "curl_femoral_tumbado", "gemelos_de_pie"], Jue: ["press_inclinado_barra", "jalon_al_pecho", "remo_mancuerna", "curl_barra"], Vie: ["prensa_45", "hip_thrust_barra", "extension_cuadriceps", "curl_femoral_sentado"] } },
+] as const;
 
 function makeExercise(option: ExerciseOption): DraftExercise {
   return {
@@ -108,13 +108,10 @@ export default function NewRoutinePage() {
   };
 
   const applyTemplate = (template: typeof templates[number]) => {
-    const templateExercises = template.exercises
-      .map((catalogId) => exerciseOptions.find((option) => option.id === catalogId))
-      .filter((option): option is ExerciseOption => Boolean(option));
     setName(template.name);
-    setSelectedDays(template.days);
+    setSelectedDays([...template.days]);
     setActiveDay(template.days[0]);
-    setByDay(Object.fromEntries(template.days.map((day) => [day, templateExercises.map(makeExercise)])));
+    setByDay(Object.fromEntries(template.days.map((day) => [day, (template.exercisesByDay[day as keyof typeof template.exercisesByDay] || []).map((catalogId) => exerciseOptions.find((option) => option.id === catalogId)).filter((option): option is ExerciseOption => Boolean(option)).map(makeExercise)])));
     setSearch("");
     setMuscleFilter("all");
     setError("");
@@ -207,7 +204,7 @@ function CreateChoice({ onCustom, onTemplates }: { onCustom: () => void; onTempl
 }
 
 function TemplateChoice({ onBack, onChoose }: { onBack: () => void; onChoose: (template: typeof templates[number]) => void }) {
-  return <main className="min-h-dvh bg-[#090a08] px-4 pb-36 pt-28 text-white sm:px-8"><div className="mx-auto max-w-4xl"><button type="button" onClick={onBack} className="inline-flex items-center gap-2 text-xs text-white/45 hover:text-white"><ChevronLeft size={15} /> Volver a las opciones</button><header className="mt-8"><p className="text-[10px] font-bold tracking-[.22em] text-[#b7ff00]/70">PLANTILLAS</p><h1 className="mt-2 text-3xl font-semibold tracking-[-.05em] sm:text-4xl">Elegí una base.</h1><p className="mt-2 text-sm text-white/40">No te ata a ningún formato: después podés editar ejercicios, series y reps.</p></header><div className="mt-8 grid gap-4">{templates.map((template) => <button key={template.name} type="button" onClick={() => onChoose(template)} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/[.08] bg-[#10110e] p-5 text-left transition hover:border-[#b7ff00]/35 hover:bg-[#b7ff00]/[.035]"><div><p className="text-lg font-semibold">{template.name}</p><p className="mt-1 max-w-xl text-sm text-white/40">{template.description}</p></div><div className="flex shrink-0 gap-2 text-xs"><span className="rounded-lg bg-white/[.06] px-2.5 py-1.5 text-white/60">{template.days.length} días</span><span className="rounded-lg bg-[#b7ff00]/[.08] px-2.5 py-1.5 font-semibold text-[#d7ff78]">{template.exercises.length} ejercicios</span></div></button>)}</div></div></main>;
+  return <main className="min-h-dvh bg-[#090a08] px-4 pb-36 pt-28 text-white sm:px-8"><div className="mx-auto max-w-4xl"><button type="button" onClick={onBack} className="inline-flex items-center gap-2 text-xs text-white/45 hover:text-white"><ChevronLeft size={15} /> Volver a las opciones</button><header className="mt-8"><p className="text-[10px] font-bold tracking-[.22em] text-[#b7ff00]/70">PLANTILLAS</p><h1 className="mt-2 text-3xl font-semibold tracking-[-.05em] sm:text-4xl">Elegí una base.</h1><p className="mt-2 text-sm text-white/40">No te ata a ningún formato: después podés editar ejercicios, series y reps.</p></header><div className="mt-8 grid gap-4">{templates.map((template) => <button key={template.name} type="button" onClick={() => onChoose(template)} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/[.08] bg-[#10110e] p-5 text-left transition hover:border-[#b7ff00]/35 hover:bg-[#b7ff00]/[.035]"><div><p className="text-lg font-semibold">{template.name}</p><p className="mt-1 max-w-xl text-sm text-white/40">{template.description}</p></div><div className="flex shrink-0 gap-2 text-xs"><span className="rounded-lg bg-white/[.06] px-2.5 py-1.5 text-white/60">{template.days.length} días</span><span className="rounded-lg bg-[#b7ff00]/[.08] px-2.5 py-1.5 font-semibold text-[#d7ff78]">{Object.values(template.exercisesByDay).reduce((total, exercises) => total + exercises.length, 0)} ejercicios</span></div></button>)}</div></div></main>;
 }
 
 function ExerciseGallery({ groups, selected, search, muscleFilter, activeDay, onSearch, onMuscleFilter, onToggle, onContinue }: { groups: Array<{ id: string; name: string; exercises: { multiarticulares: readonly { id: string; name: string; equipment: readonly string[] }[]; uniarticulares: readonly { id: string; name: string; equipment: readonly string[] }[] } }>; selected: DraftExercise[]; search: string; muscleFilter: string; activeDay: string; onSearch: (value: string) => void; onMuscleFilter: (value: string) => void; onToggle: (exercise: ExerciseOption) => void; onContinue: () => void }) {
@@ -271,6 +268,8 @@ function ExerciseGallery({ groups, selected, search, muscleFilter, activeDay, on
       </button>
     ))}
   </div>
+
+  <label className="relative mt-4 block"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/35"/><input type="search" value={search} onChange={(event) => onSearch(event.target.value)} className="input pl-10" placeholder="Buscar por ejercicio o grupo muscular" aria-label="Buscar ejercicios"/></label>
 
   {/* LISTA DE EJERCICIOS */}
   <div className="mt-6 space-y-7">

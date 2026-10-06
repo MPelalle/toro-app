@@ -2,7 +2,7 @@ import { cacheRoutine, cacheRoutines, createClientId, getCachedRoutine, getCache
 import { enqueueRoutineRequest } from "@/lib/offline/repositories/operations";
 import { setRoutineSyncStatus } from "@/lib/offline/repositories/routines";
 
-export type RoutineExercise = { id: string; catalogExerciseId?: string | null; name: string; muscle: string; sets: number; reps: number; weight: number; technique: string; completed: boolean | null; actualReps: number | null; note: string; trainingDay: string };
+export type RoutineExercise = { id: string; catalogExerciseId?: string | null; name: string; muscle: string; sets: number; reps: number; weight: number; technique: string; restSeconds?: number | null; supersetGroupId?: string | null; completed: boolean | null; actualReps: number | null; note: string; trainingDay: string };
 export type Routine = { id: string; name: string; type: string; kind?: "PERSONAL" | "SHARED"; canEdit?: boolean; days: string[]; active: boolean; isPublished?: boolean; publishedAt?: string | null; exercises: RoutineExercise[]; createdAt: string };
 
 export async function routineRequest<T>(url: string, options?: RequestInit): Promise<T> {
@@ -52,7 +52,7 @@ export async function createRoutineOfflineFirst(draft: RoutineDraft) {
   catch { await queueRoutine(routine.id, "/api/routines", "POST", routine); return routine; }
 }
 
-export async function updateRoutineOfflineFirst(id: string, patch: Partial<Pick<Routine, "name" | "type" | "days" | "active" | "isPublished">>) {
+export async function updateRoutineOfflineFirst(id: string, patch: Partial<Pick<Routine, "name" | "type" | "days" | "active" | "isPublished" | "exercises">>) {
   const existing = await getCachedRoutine(id);
   if (!existing) throw new Error("La rutina todavía no está disponible en este dispositivo.");
   const local = { ...existing, ...patch };

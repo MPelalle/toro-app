@@ -6,7 +6,8 @@ export type ToroReward = {
   progress: number;
   progressLabel: string;
   unlocked: boolean;
-  code: string;
+  /** A checkout integration must issue this value per user. */
+  code: string | null;
 };
 
 export type ToroRewards = {

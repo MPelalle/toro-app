@@ -24,8 +24,9 @@ function dayKey(day: string) {
 }
 
 function reward(id: ToroReward["id"], title: string, discount: ToroReward["discount"], description: string, progress: number, progressLabel: string): ToroReward {
-  const code = discount === 10 ? "TORO10" : discount === 20 ? "TORO20" : discount === 50 ? "TORO50" : "TORO100";
-  return { id, title, discount, description, progress: Math.max(0, Math.min(100, Math.round(progress))), progressLabel, unlocked: progress >= 100, code };
+  // There is no checkout entitlement provider yet. Never expose a generic
+  // coupon that can be copied or redeemed by users who did not earn it.
+  return { id, title, discount, description, progress: Math.max(0, Math.min(100, Math.round(progress))), progressLabel, unlocked: progress >= 100, code: null };
 }
 
 /** One public coupon per discount tier. The returned highest code is the only

@@ -1,20 +1,55 @@
 import type { Routine } from "@/lib/routines";
 import type { OfflineWorkoutSession } from "./offline/types";
-import { cacheRoutineRecord, cacheRoutineRecords, getCachedRoutineRecord, getCachedRoutineRecords } from "./offline/repositories/routines";
-import { failedOperationCount, pendingOperationCount, unsyncedOperationCount } from "./offline/repositories/operations";
-import { clearOfflineIdentity, setActiveOfflineIdentity, type OfflineIdentity } from "./offline/repositories/identity";
-import { createLocalWorkoutSession, getActiveLocalWorkoutSession, getLocalWorkoutSession, getRecentLocalWorkoutSessions, saveLocalWorkoutSession } from "./offline/repositories/workout-sessions";
-import { retryPendingOperationsManually, synchronizePendingWorkoutSessions } from "./offline/sync/workout-sessions";
-import { hydrateRoutineHistory, isOfflineIdentityReady, prepareOfflineTrainingData } from "./offline/bootstrap";
+import {
+  cacheRoutineRecord,
+  cacheRoutineRecords,
+  getCachedRoutineRecord,
+  getCachedRoutineRecords,
+} from "./offline/repositories/routines";
+import {
+  failedOperationCount,
+  pendingOperationCount,
+  unsyncedOperationCount,
+} from "./offline/repositories/operations";
+import {
+  clearOfflineIdentity,
+  setActiveOfflineIdentity,
+  type OfflineIdentity,
+} from "./offline/repositories/identity";
+import {
+  createLocalFreeWorkoutSession,
+  createLocalWorkoutSession,
+  getActiveLocalWorkoutSession,
+  getLocalWorkoutSession,
+  getRecentLocalWorkoutSessions,
+  saveLocalWorkoutSession,
+} from "./offline/repositories/workout-sessions";
+import {
+  retryPendingOperationsManually,
+  synchronizePendingWorkoutSessions,
+} from "./offline/sync/workout-sessions";
+import {
+  hydrateRoutineHistory,
+  isOfflineIdentityReady,
+  prepareOfflineTrainingData,
+} from "./offline/bootstrap";
 
-export type { OfflineWorkoutExercise, OfflineWorkoutSession, OfflineWorkoutSet as WorkoutSet } from "./offline/types";
+export type {
+  OfflineWorkoutExercise,
+  OfflineWorkoutSession,
+  OfflineWorkoutSet as WorkoutSet,
+} from "./offline/types";
 
 function emitSyncChange() {
-  if (typeof window !== "undefined") window.dispatchEvent(new Event("toro-sync-change"));
+  if (typeof window !== "undefined")
+    window.dispatchEvent(new Event("toro-sync-change"));
 }
 
 export function setWorkoutInProgress(active: boolean) {
-  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("toro-workout-status-change", { detail: { active } }));
+  if (typeof window !== "undefined")
+    window.dispatchEvent(
+      new CustomEvent("toro-workout-status-change", { detail: { active } }),
+    );
 }
 
 export function createClientId() {
@@ -49,15 +84,22 @@ export function createWorkoutSession(routine: Routine) {
   return createLocalWorkoutSession(routine);
 }
 
+export function createFreeWorkoutSession() {
+  return createLocalFreeWorkoutSession();
+}
+
 export async function getWorkoutSession(id: string) {
   return getLocalWorkoutSession(id);
 }
 
-export async function getActiveWorkoutSession(routineId: string) {
+export async function getActiveWorkoutSession(routineId: string | null) {
   return getActiveLocalWorkoutSession(routineId);
 }
 
-export async function getRecentWorkoutSessions(routineId: string, limit?: number) {
+export async function getRecentWorkoutSessions(
+  routineId: string | null,
+  limit?: number,
+) {
   return getRecentLocalWorkoutSessions(routineId, limit);
 }
 

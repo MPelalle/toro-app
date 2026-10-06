@@ -1,11 +1,16 @@
 import { getCurrentUser } from "@/lib/auth";
 import { createCommunityRepost, deleteCommunityRepost } from "@/lib/community";
-import { hasTrustedOrigin, isUuid, originError } from "@/lib/security";
+import { SOCIAL_LIMITS } from "@/lib/social-policy";
+import { hasTrustedOrigin, isUuid, originError, rateLimit, rateLimitByKey, rateLimitResponse } from "@/lib/security";
 
 export async function POST(request: Request) {
   if (!hasTrustedOrigin(request)) return originError();
+  const requestLimit = rateLimit(request, "social-repost-ip", SOCIAL_LIMITS.repostsPerDay, 24 * 60 * 60_000);
+  if (!requestLimit.ok) return rateLimitResponse(requestLimit.retryAfter);
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "No autorizado" }, { status: 401 });
+  const userLimit = rateLimitByKey(user.id, "social-repost", SOCIAL_LIMITS.repostsPerDay, 24 * 60 * 60_000);
+  if (!userLimit.ok) return rateLimitResponse(userLimit.retryAfter);
   const body = await request.json().catch(() => null);
   try {
     return Response.json(await createCommunityRepost(user.id, String(body?.nickname || ""), body?.originalType, body?.originalId), { status: 201 });

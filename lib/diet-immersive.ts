@@ -2,6 +2,7 @@ import "server-only";
 
 import { appCalendarDate, appDateKey, dateAtNoonUTC, storedDateKey } from "@/lib/app-date";
 import { getPrisma } from "@/lib/prisma";
+import { weeklyAdjustmentFor } from "@/lib/nutrition-rules";
 
 export const DIET_FEELINGS = ["Excelente", "Bien", "Normal", "Baja energía", "Mucho hambre"] as const;
 export type DietFeeling = (typeof DIET_FEELINGS)[number];
@@ -21,14 +22,6 @@ function round(value: number, step = 5) {
 function scaleFoodPortion(value: unknown, factor: number) {
   if (typeof value !== "string") return String(value);
   return value.replace(/^(\d+(?:\.\d+)?)\s*×/, (_, amount) => `${Math.max(0.1, Math.round(Number(amount) * factor * 10) / 10)} ×`);
-}
-
-function adjustmentFor(goal: string, previousWeight: number, weight: number) {
-  const change = weight - previousWeight;
-  const rate = change / previousWeight;
-  if (goal === "lose") return rate >= -0.001 ? -100 : rate < -0.0125 ? 100 : 0;
-  if (goal === "gain") return rate <= 0.001 ? 100 : rate > 0.0075 ? -100 : 0;
-  return Math.abs(rate) > 0.004 ? (change > 0 ? -100 : 100) : 0;
 }
 
 export async function saveImmersiveDietCheckIn(userId: string, dietId: string, input: WeeklyInput) {
@@ -53,9 +46,7 @@ export async function saveImmersiveDietCheckIn(userId: string, dietId: string, i
     const completedMeals = logs.reduce((total, log) => total + (Array.isArray(log.completedMealIds) ? log.completedMealIds.length : 0), 0);
     const adherence = diet.meals.length ? completedMeals / (7 * diet.meals.length) : 0;
     const canAdjust = Boolean(previous && logs.length >= 5 && adherence >= 0.7);
-    const requestedAdjustment = canAdjust && previous ? adjustmentFor(diet.goal, previous.weight, input.weight) : 0;
-    const minimumCalories = diet.sex === "male" ? 1500 : 1200;
-    const adjustmentKcal = requestedAdjustment && diet.calories + requestedAdjustment >= minimumCalories ? requestedAdjustment : 0;
+    const adjustmentKcal = previous ? weeklyAdjustmentFor({ age: diet.age, goal: diet.goal, previousWeight: previous.weight, weight: input.weight, currentCalories: diet.calories, sex: diet.sex as "male" | "female", hasEnoughAdherence: canAdjust }) : 0;
 
     const checkIn = await tx.dietWeeklyCheckIn.create({ data: { dietId, userId, weekStart, ...input, note: input.note || null, adjustmentKcal } });
     await tx.dietWeightEntry.create({ data: { dietId, userId, date: weekStart, weight: input.weight, note: input.note || `Revisión semanal · ${input.feeling}` } });

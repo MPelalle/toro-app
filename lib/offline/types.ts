@@ -1,6 +1,12 @@
 import type { WorkoutEmotionalState } from "@/lib/workout-session-feedback";
 
-export const SYNC_STATUSES = ["synced", "pending", "syncing", "failed", "conflict"] as const;
+export const SYNC_STATUSES = [
+  "synced",
+  "pending",
+  "syncing",
+  "failed",
+  "conflict",
+] as const;
 export type SyncStatus = (typeof SYNC_STATUSES)[number];
 
 export type SyncMetadata = {
@@ -47,6 +53,8 @@ export type LocalRoutineExercise = SyncMetadata & {
   targetReps: number;
   targetWeight: number;
   technique: string;
+  restSeconds?: number | null;
+  supersetGroupId?: string | null;
   completed: boolean | null;
   actualReps: number | null;
   note: string;
@@ -70,15 +78,17 @@ export type OfflineWorkoutSet = SyncMetadata & {
 
 export type OfflineWorkoutExercise = SyncMetadata & {
   sessionId: string;
-  routineExerciseId: string;
+  routineExerciseId: string | null;
   catalogExerciseId?: string | null;
   position: number;
   name: string;
   muscle: string;
+  restSeconds?: number | null;
+  supersetGroupId?: string | null;
 };
 
 export type OfflineWorkoutSession = SyncMetadata & {
-  routineId: string;
+  routineId: string | null;
   status: "IN_PROGRESS" | "FINISHED";
   startedAt: string;
   finishedAt: string | null;
@@ -94,7 +104,8 @@ export type WorkoutSessionRow = Omit<OfflineWorkoutSession, "exercises">;
 
 export type SyncEntityType = "workout-session" | "routine";
 export type QueueOperationType = "create" | "update" | "delete";
-export type QueueOperationStatus = "pending" | "syncing" | "failed" | "conflict" | "exhausted";
+export type QueueOperationStatus =
+  "pending" | "syncing" | "failed" | "conflict" | "exhausted";
 
 export type QueuedRequest = {
   url: string;

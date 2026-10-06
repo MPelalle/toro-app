@@ -59,11 +59,41 @@ enum DietMemberRole {
 enum SocialNotificationType {
   REPOST
   ROUTINE_SAVED
+  ACTIVITY_LIKED
+  ACTIVITY_COMMENTED
+  FRIEND_ACCEPTED
+}
+
+enum SocialActivityType {
+  WORKOUT_COMPLETED
+  ROUTINE_PUBLISHED
+  STATUS
+  REPOST
+}
+
+enum SocialReportReason {
+  SPAM
+  HARASSMENT
+  INAPPROPRIATE
+  OTHER
 }
 
 enum ProfileMessageAudience {
   FRIENDS
   ANYONE
+}
+
+enum ProfileVisibility {
+  PUBLIC
+  FRIENDS
+  PRIVATE
+}
+
+enum ProgressPhotoView {
+  FRONT
+  SIDE
+  BACK
+  OTHER
 }
 
 /// Perfil de la aplicación. Su `id` debe coincidir con el UUID de auth.users
@@ -77,6 +107,7 @@ model User {
   /// se completa con un índice funcional en la migración SQL.
   nickname  String?  @unique
   bio       String?
+  profileVisibility ProfileVisibility @default(PUBLIC) @map("profile_visibility")
   profileMessageAudience ProfileMessageAudience @default(FRIENDS) @map("profile_message_audience")
   pinHash   String?  @map("pin_hash")
   emailVerifiedAt DateTime? @map("email_verified_at")
@@ -104,6 +135,8 @@ model User {
   dietWeightEntries DietWeightEntry[]
   dietDailyLogs DietDailyLog[]
   dietWeeklyCheckIns DietWeeklyCheckIn[]
+  bodyMeasurements BodyMeasurement[]
+  progressPhotos ProgressPhoto[]
   communityStatuses CommunityStatus[]
   profileMessagesSent CommunityProfileMessage[] @relation("ProfileMessageAuthor")
   profileMessagesReceived CommunityProfileMessage[] @relation("ProfileMessageProfile")
@@ -111,6 +144,12 @@ model User {
   repostsReceived SocialRepost[] @relation("RepostOriginalAuthor")
   notifications SocialNotification[] @relation("NotificationRecipient")
   notificationsSent SocialNotification[] @relation("NotificationActor")
+  activities SocialActivity[] @relation("ActivityActor")
+  activityReactions SocialActivityReaction[]
+  activityComments SocialActivityComment[]
+  blocksSent SocialBlock[] @relation("Blocker")
+  blocksReceived SocialBlock[] @relation("Blocked")
+  reportsSent SocialReport[] @relation("ReportReporter")
 
   @@map("users")
 }
@@ -211,6 +250,45 @@ model DietWeightEntry {
   @@index([dietId, date])
   @@index([userId, date])
   @@map("diet_weight_entries")
+}
+
+/// Medidas corporales privadas. El peso se mantiene en DietWeightEntry para
+/// que Dieta y Progreso compartan una única fuente de verdad.
+model BodyMeasurement {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  date      DateTime @db.Date
+  unit      String   @default("cm")
+  waist     Float?
+  chest     Float?
+  arm       Float?
+  thigh     Float?
+  hip       Float?
+  calf      Float?
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("body_measurements")
+}
+
+/// Sólo almacenamos la referencia al objeto privado, nunca URLs públicas.
+model ProgressPhoto {
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String            @map("user_id") @db.Uuid
+  objectPath String            @unique @map("object_path")
+  view       ProgressPhotoView @default(OTHER)
+  date       DateTime          @db.Date
+  createdAt  DateTime          @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@map("progress_photos")
 }
 
 model DietDailyLog {
@@ -359,6 +437,7 @@ model RoutinePlan {
   exercises RoutineExercise[]
   members   RoutineMember[]
   workoutSessions WorkoutSession[]
+  socialActivities SocialActivity[]
 
   @@index([userId, kind, active])
   @@index([userId, isPublished, publishedAt])
@@ -377,9 +456,101 @@ model CommunityStatus {
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity SocialActivity?
 
   @@index([userId, createdAt])
   @@map("community_statuses")
+}
+
+/// Feed social derivado de acciones fitness. La relación estable evita duplicados
+/// cuando una sesión offline se sincroniza más de una vez.
+model SocialActivity {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId String @map("actor_user_id") @db.Uuid
+  type SocialActivityType
+  workoutSessionId String? @unique @map("workout_session_id") @db.Uuid
+  routineId String? @map("routine_id") @db.Uuid
+  statusId String? @unique @map("status_id") @db.Uuid
+  originalActivityId String? @map("original_activity_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  actor User @relation("ActivityActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+  workoutSession WorkoutSession? @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
+  routine RoutinePlan? @relation(fields: [routineId], references: [id], onDelete: SetNull)
+  status CommunityStatus? @relation(fields: [statusId], references: [id], onDelete: Cascade)
+  originalActivity SocialActivity? @relation("ActivityReposts", fields: [originalActivityId], references: [id], onDelete: SetNull)
+  reposts SocialActivity[] @relation("ActivityReposts")
+  reactions SocialActivityReaction[]
+  comments SocialActivityComment[]
+  reports SocialReport[]
+
+  @@index([actorUserId, createdAt])
+  @@index([createdAt, id])
+  /// Una rutina puede volver a editarse, pero su primera publicación sólo debe
+  /// generar un evento social. `routineId` es nullable para no afectar a otros
+  /// tipos de actividad (Postgres permite varios NULL en este índice único).
+  @@unique([routineId, type])
+  @@map("social_activities")
+}
+
+model SocialActivityReaction {
+  activityId String @map("activity_id") @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  activity SocialActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([activityId, userId])
+  @@index([userId, createdAt])
+  @@map("social_activity_reactions")
+}
+
+model SocialActivityComment {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  activityId String @map("activity_id") @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  content String
+  createdAt DateTime @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  activity SocialActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([activityId, createdAt])
+  @@index([userId, createdAt])
+  @@map("social_activity_comments")
+}
+
+model SocialBlock {
+  blockerId String @map("blocker_id") @db.Uuid
+  blockedId String @map("blocked_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("social_blocks")
+}
+
+model SocialReport {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporterId String @map("reporter_id") @db.Uuid
+  targetUserId String? @map("target_user_id") @db.Uuid
+  activityId String? @map("activity_id") @db.Uuid
+  reason SocialReportReason
+  detail String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  reporter User @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  activity SocialActivity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
+
+  @@index([targetUserId, createdAt])
+  @@index([activityId, createdAt])
+  @@map("social_reports")
 }
 
 /// Texto breve dejado por un amigo en el perfil de otro atleta.
@@ -479,6 +650,10 @@ model RoutineExercise {
   reps        Int
   weight      Float
   technique   String
+  /// Descanso prescripto en segundos. Nulo conserva el descanso global.
+  restSeconds Int?     @map("rest_seconds")
+  /// Agrupación opcional, compartida por ejercicios de una superserie.
+  supersetGroupId String? @map("superset_group_id")
   trainingDay String   @map("training_day")
   completed   Boolean? @default(false)
   actualReps  Int?     @map("actual_reps")
@@ -497,7 +672,8 @@ model WorkoutSession {
   /// UUID generado en el cliente. Permite reintentos seguros después de una pérdida de red.
   id              String               @id @db.Uuid
   userId          String               @map("user_id") @db.Uuid
-  routineId       String               @map("routine_id") @db.Uuid
+  /// Nulo para entrenamientos libres, que no parten de una rutina prescripta.
+  routineId       String?              @map("routine_id") @db.Uuid
   status          WorkoutSessionStatus @default(IN_PROGRESS)
   startedAt       DateTime             @map("started_at")
   finishedAt      DateTime?            @map("finished_at")
@@ -511,8 +687,9 @@ model WorkoutSession {
   updatedAt       DateTime             @updatedAt @map("updated_at")
 
   user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  routine   RoutinePlan            @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  routine   RoutinePlan?           @relation(fields: [routineId], references: [id], onDelete: SetNull)
   exercises WorkoutSessionExercise[]
+  socialActivity SocialActivity?
 
   @@index([userId, routineId, status])
   @@index([userId, status, finishedAt])
@@ -524,11 +701,16 @@ model WorkoutSessionExercise {
   /// UUID generado en el cliente junto con la sesión.
   id                String @id @db.Uuid
   sessionId         String @map("session_id") @db.Uuid
-  routineExerciseId String @map("routine_exercise_id") @db.Uuid
+  /// Nulo para ejercicios agregados en un entrenamiento libre.
+  routineExerciseId String? @map("routine_exercise_id") @db.Uuid
   catalogExerciseId String? @map("catalog_exercise_id")
   position          Int
   name              String
   muscle            String
+  /// Snapshot editable del descanso para esta ejecución, independiente del plan.
+  restSeconds       Int? @map("rest_seconds")
+  /// Grupo estructural de superserie/giant set de esta sesión.
+  supersetGroupId   String? @map("superset_group_id")
 
   session WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   sets    WorkoutSet[]

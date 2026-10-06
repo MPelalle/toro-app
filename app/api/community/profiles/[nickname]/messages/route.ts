@@ -1,11 +1,16 @@
 import { getCurrentUser } from "@/lib/auth";
 import { createCommunityProfileMessage, deleteCommunityProfileMessage } from "@/lib/community";
-import { hasTrustedOrigin, isUuid, originError } from "@/lib/security";
+import { SOCIAL_LIMITS } from "@/lib/social-policy";
+import { hasTrustedOrigin, isUuid, originError, rateLimit, rateLimitByKey, rateLimitResponse } from "@/lib/security";
 
 export async function POST(request: Request, ctx: RouteContext<"/api/community/profiles/[nickname]/messages">) {
   if (!hasTrustedOrigin(request)) return originError();
+  const requestLimit = rateLimit(request, "social-profile-message-ip", SOCIAL_LIMITS.profileMessagesPerFifteenMinutes, 15 * 60_000);
+  if (!requestLimit.ok) return rateLimitResponse(requestLimit.retryAfter);
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "No autorizado" }, { status: 401 });
+  const userLimit = rateLimitByKey(user.id, "social-profile-message", SOCIAL_LIMITS.profileMessagesPerFifteenMinutes, 15 * 60_000);
+  if (!userLimit.ok) return rateLimitResponse(userLimit.retryAfter);
   const { nickname } = await ctx.params;
   const body = await request.json().catch(() => null);
   try {

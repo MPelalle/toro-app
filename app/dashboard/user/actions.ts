@@ -14,6 +14,7 @@ export async function updateProfile(formData: FormData) {
   const name = String(formData.get("name") || "").trim();
   const bio = String(formData.get("bio") || "").trim();
   const nickname = validateNickname(String(formData.get("nickname") || ""));
+  const profileVisibility = String(formData.get("profileVisibility") || "PUBLIC");
   const profileMessageAudience = String(formData.get("profileMessageAudience") || "FRIENDS");
   const avatarInput = String(formData.get("avatarUrl") || "");
   // Existing avatar URLs remain valid. A stored photo is also accepted if storage
@@ -24,7 +25,8 @@ export async function updateProfile(formData: FormData) {
   if (!nickname) throw new Error("El nickname debe tener entre 3 y 20 caracteres y solo puede usar letras, números, . o _.");
   if (avatarUrl === undefined) throw new Error("El avatar seleccionado no está disponible.");
   if (profileMessageAudience !== "FRIENDS" && profileMessageAudience !== "ANYONE") throw new Error("La preferencia de mensajes no es válida.");
-  try { await getPrisma().user.update({ where: { id: user.id }, data: { name, nickname, bio: bio || null, avatarUrl, profileMessageAudience } }); }
+  if (!["PUBLIC", "FRIENDS", "PRIVATE"].includes(profileVisibility)) throw new Error("Visibilidad de perfil inválida.");
+  try { await getPrisma().user.update({ where: { id: user.id }, data: { name, nickname, bio: bio || null, avatarUrl, profileVisibility: profileVisibility as "PUBLIC" | "FRIENDS" | "PRIVATE", profileMessageAudience } }); }
   catch { throw new Error("Ese nickname ya está en uso."); }
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/user");

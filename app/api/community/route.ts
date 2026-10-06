@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
-import { FRIEND_LIMIT, acceptedFriendCount, getMyCommunitySummary, listFriends, listPendingRequests, listSharedRoutines } from "@/lib/community";
+import { acceptedFriendCount, getMyCommunitySummary, listFriends, listPendingRequests, listSharedRoutines } from "@/lib/community";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -13,7 +13,9 @@ export async function GET() {
       members: routine.members.map((member) => ({ id: member.userId, name: member.user.name || member.user.nickname || "Atleta", nickname: member.user.nickname, avatarUrl: member.user.avatarUrl })),
     })),
     friendCount,
-    friendLimit: FRIEND_LIMIT,
+    // Friendships are no longer capped at five. Shared coaching plans keep
+    // their own small member limit in the domain layer.
+    friendLimit: null,
     me,
   }, { headers: { "Cache-Control": "no-store" } });
 }

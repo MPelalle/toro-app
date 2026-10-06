@@ -8,19 +8,28 @@ function clientKey(request: Request) {
 }
 
 /** Lightweight protection for authentication endpoints. Use a shared store at scale. */
-export function rateLimit(request: Request, scope: string, limit: number, windowMs: number): RateLimitResult {
+/**
+ * Process-local rate limiting. The identity overload is useful after auth so a
+ * signed-in account cannot evade a write limit just by changing IP addresses.
+ * Production deployments should replace this store with a shared backend.
+ */
+export function rateLimitByKey(key: string, scope: string, limit: number, windowMs: number): RateLimitResult {
   const now = Date.now();
-  const key = `${scope}:${clientKey(request)}`;
-  const current = attempts.get(key);
+  const attemptKey = `${scope}:${key}`;
+  const current = attempts.get(attemptKey);
 
   if (!current || current.resetAt <= now) {
-    attempts.set(key, { count: 1, resetAt: now + windowMs });
+    attempts.set(attemptKey, { count: 1, resetAt: now + windowMs });
     return { ok: true };
   }
 
   current.count += 1;
   if (current.count <= limit) return { ok: true };
   return { ok: false, retryAfter: Math.max(1, Math.ceil((current.resetAt - now) / 1000)) };
+}
+
+export function rateLimit(request: Request, scope: string, limit: number, windowMs: number): RateLimitResult {
+  return rateLimitByKey(clientKey(request), scope, limit, windowMs);
 }
 
 export function rateLimitResponse(retryAfter: number) {
