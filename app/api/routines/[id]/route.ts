@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
 import { hasTrustedOrigin, isUuid, originError } from "@/lib/security";
 import { ensureRoutinePublishedActivity } from "@/lib/social-activity";
+import { revalidatePublicRoutines } from "@/lib/public-routine";
 
 const include = { exercises: { orderBy: { position: "asc" as const } } };
 const notFound = () =>
@@ -101,6 +102,7 @@ export async function PATCH(
         include,
       });
     });
+    revalidatePublicRoutines();
     if (body.isPublished === true && updated.isPublished)
       void ensureRoutinePublishedActivity(updated.id).catch(() => undefined);
     return Response.json(serialize(updated));
@@ -267,6 +269,7 @@ export async function PATCH(
         include,
       });
     });
+    revalidatePublicRoutines();
     if (body.isPublished === true && updated.isPublished)
       void ensureRoutinePublishedActivity(updated.id).catch(() => undefined);
     return Response.json(serialize(updated));
@@ -276,6 +279,7 @@ export async function PATCH(
     data: { name, type, days, updatedById: user.id, ...publicationData },
     include,
   });
+  revalidatePublicRoutines();
   if (body.isPublished === true && updated.isPublished)
     void ensureRoutinePublishedActivity(updated.id).catch(() => undefined);
   return Response.json(serialize(updated));
@@ -295,5 +299,6 @@ export async function DELETE(
   });
   if (!plan) return Response.json({ ok: true, applied: false });
   await getPrisma().routinePlan.delete({ where: { id } });
+  revalidatePublicRoutines();
   return Response.json({ ok: true, applied: true });
 }

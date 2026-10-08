@@ -10,6 +10,8 @@ import { isValidDateKey } from "@/lib/security";
 const statuses = ["ACTIVE", "PAUSED", "INACTIVE"] as const;
 const importances = ["LOW", "MEDIUM", "HIGH"] as const;
 const units = ["DAYS", "MONTHS"] as const;
+const feelings = ["VERY_DIFFICULT", "DIFFICULT", "NEUTRAL", "EASY", "VERY_EASY"] as const;
+export type HabitFeelingValue = (typeof feelings)[number];
 
 function readHabitForm(formData: FormData) {
   const name = String(formData.get("name") || "").trim();
@@ -63,7 +65,7 @@ export async function deleteHabit(id: string) {
   redirect("/dashboard/habits");
 }
 
-export async function toggleHabitCheckIn(id: string, completedAt: string) {
+export async function toggleHabitCheckIn(id: string, completedAt: string, feeling?: HabitFeelingValue | null) {
   const habit = await getHabit(id);
   if (!habit || habit.status !== "ACTIVE") throw new Error("No se puede completar este hábito.");
   if (!isValidDateKey(completedAt)) throw new Error("Fecha no válida.");
@@ -75,11 +77,17 @@ export async function toggleHabitCheckIn(id: string, completedAt: string) {
     throw new Error("El registro debe estar dentro del período activo del hábito.");
   }
   if (Number.isNaN(date.getTime())) throw new Error("Fecha no válida.");
+  if (feeling !== undefined && feeling !== null && !feelings.includes(feeling))
+    throw new Error("Sensación no válida.");
   const prisma = getPrisma();
   const existing = await prisma.habitCheckIn.findUnique({ where: { habitId_completedAt: { habitId: id, completedAt: date } } });
 
-  if (existing) await prisma.habitCheckIn.update({ where: { id: existing.id }, data: { completed: !existing.completed } });
-  else await prisma.habitCheckIn.create({ data: { habitId: id, completedAt: date, completed: true } });
+  if (existing) {
+    const data = existing.completed && feeling === undefined
+      ? { completed: false }
+      : { completed: true, ...(feeling !== undefined ? { feeling } : {}) };
+    await prisma.habitCheckIn.update({ where: { id: existing.id }, data });
+  } else await prisma.habitCheckIn.create({ data: { habitId: id, completedAt: date, completed: true, feeling: feeling ?? null } });
 
   revalidatePath("/dashboard/habits");
   revalidatePath(`/dashboard/habits/${id}`);

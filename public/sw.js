@@ -1,4 +1,4 @@
-const CACHE_NAME = "toro-public-shell-v2";
+const CACHE_NAME = "toro-public-shell-v3";
 const PUBLIC_SHELL = ["/", "/login", "/sign-in", "/offline", "/manifest.webmanifest", "/icons/toro-icon-1024.png"];
 const PUBLIC_NAVIGATIONS = new Set(["/", "/login", "/sign-in", "/offline"]);
 
@@ -80,7 +80,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/")) {
+  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/") || url.pathname.startsWith("/assets/")) {
     event.respondWith(cacheFirstAsset(request));
   }
 });

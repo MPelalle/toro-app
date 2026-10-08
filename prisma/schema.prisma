@@ -24,6 +24,14 @@ enum HabitDurationUnit {
   MONTHS
 }
 
+enum HabitFeeling {
+  VERY_DIFFICULT
+  DIFFICULT
+  NEUTRAL
+  EASY
+  VERY_EASY
+}
+
 enum WorkoutSessionStatus {
   IN_PROGRESS
   FINISHED
@@ -34,6 +42,12 @@ enum FriendshipStatus {
   ACCEPTED
   REJECTED
   CANCELLED
+}
+
+enum TrainingFolderKind {
+  PLAN
+  MESOCYCLE
+  SIX_MONTH_CYCLE
 }
 
 enum RoutineKind {
@@ -121,6 +135,7 @@ model User {
   habits Habit[]
   diets DietPlan[]
   routines RoutinePlan[]
+  trainingFolders TrainingFolder[]
   workoutSessions WorkoutSession[]
   dailyVisits AppDailyVisit[]
   badgeAwards UserBadgeAward[]
@@ -404,6 +419,7 @@ model HabitCheckIn {
   habitId     String   @map("habit_id") @db.Uuid
   completedAt DateTime @map("completed_at") @db.Date
   completed   Boolean  @default(true)
+  feeling     HabitFeeling?
   comment     String?
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -428,6 +444,7 @@ model RoutinePlan {
   importedFromRoutineId String? @map("imported_from_routine_id") @db.Uuid
   importedFromUserId String? @map("imported_from_user_id") @db.Uuid
   importedFromCreatorName String? @map("imported_from_creator_name")
+  trainingFolderId String? @map("training_folder_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   updatedById String? @map("updated_by_id") @db.Uuid
@@ -438,6 +455,7 @@ model RoutinePlan {
   members   RoutineMember[]
   workoutSessions WorkoutSession[]
   socialActivities SocialActivity[]
+  trainingFolder TrainingFolder? @relation(fields: [trainingFolderId], references: [id], onDelete: SetNull)
 
   @@index([userId, kind, active])
   @@index([userId, isPublished, publishedAt])
@@ -446,7 +464,25 @@ model RoutinePlan {
   @@unique([userId, importedFromRoutineId])
   @@index([kind, updatedAt])
   @@index([userId, createdAt])
+  @@index([trainingFolderId])
   @@map("routine_plans")
+}
+
+/// Agrupa rutinas personales en horizontes de planificación sin mezclar el
+/// historial de sesiones de cada rutina.
+model TrainingFolder {
+  id        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String             @map("user_id") @db.Uuid
+  name      String
+  kind      TrainingFolderKind @default(PLAN)
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routines RoutinePlan[]
+
+  @@index([userId, updatedAt])
+  @@map("training_folders")
 }
 
 model CommunityStatus {

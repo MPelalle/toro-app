@@ -28,6 +28,30 @@ function isCurrentWorkoutSession(session: WorkoutSessionRow) {
   );
 }
 
+function collectFromCursor<T>(
+  index: IDBIndex,
+  range: IDBKeyRange,
+  limit: number,
+  matches: (value: T) => boolean,
+) {
+  return new Promise<T[]>((resolve, reject) => {
+    const values: T[] = [];
+    const request = index.openCursor(range, "prev");
+    request.onerror = () =>
+      reject(request.error ?? new Error("No se pudo consultar el historial local."));
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor || values.length >= limit) {
+        resolve(values);
+        return;
+      }
+      const value = cursor.value as T;
+      if (matches(value)) values.push(value);
+      cursor.continue();
+    };
+  });
+}
+
 function nowMetadata(
   id: string,
   now: string,
@@ -381,27 +405,48 @@ export async function getActiveLocalWorkoutSession(routineId: string | null) {
     ],
     "readonly",
     async (transaction) => {
-      const sessions =
-        routineId === null
-          ? (
-              (await requestResult(
-                transaction.objectStore(STORES.workoutSessions).getAll(),
-              )) as WorkoutSessionRow[]
-            ).filter((session) => session.routineId === null)
-          : await getAllFromIndex<WorkoutSessionRow>(
-              transaction,
-              STORES.workoutSessions,
-              "by-routine-id",
-              routineId,
-            );
-      const active = sessions
-        .filter(
-          (session) =>
-            session.userId === userId &&
-            !session.deletedAt &&
-            isCurrentWorkoutSession(session),
-        )
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+      const active = await collectFromCursor<WorkoutSessionRow>(
+        transaction
+          .objectStore(STORES.workoutSessions)
+          .index("by-user-status-updated-at"),
+        IDBKeyRange.bound(
+          [userId, "IN_PROGRESS", ""],
+          [userId, "IN_PROGRESS", "\uffff"],
+        ),
+        1,
+        (session) =>
+          session.routineId === routineId &&
+          !session.deletedAt &&
+          isCurrentWorkoutSession(session),
+      ).then(([session]) => session);
+      return active ? hydrateSession(transaction, active) : undefined;
+    },
+  );
+}
+
+/** La barra persistente necesita encontrar una sesión activa aunque la persona
+ * haya navegado fuera de la rutina que la inició. */
+export async function getAnyActiveLocalWorkoutSession() {
+  const userId = await getActiveOfflineUserId();
+  return inTransaction(
+    [
+      STORES.workoutSessions,
+      STORES.workoutSessionExercises,
+      STORES.workoutSets,
+    ],
+    "readonly",
+    async (transaction) => {
+      const active = await collectFromCursor<WorkoutSessionRow>(
+        transaction
+          .objectStore(STORES.workoutSessions)
+          .index("by-user-status-updated-at"),
+        IDBKeyRange.bound(
+          [userId, "IN_PROGRESS", ""],
+          [userId, "IN_PROGRESS", "\uffff"],
+        ),
+        1,
+        (session) => !session.deletedAt && isCurrentWorkoutSession(session),
+      ).then(([session]) => session);
       return active ? hydrateSession(transaction, active) : undefined;
     },
   );
@@ -425,33 +470,20 @@ export async function getRecentLocalWorkoutSessions(
     ],
     "readonly",
     async (transaction) => {
-      const sessions =
-        routineId === null
-          ? (
-              (await requestResult(
-                transaction.objectStore(STORES.workoutSessions).getAll(),
-              )) as WorkoutSessionRow[]
-            ).filter((session) => session.routineId === null)
-          : await getAllFromIndex<WorkoutSessionRow>(
-              transaction,
-              STORES.workoutSessions,
-              "by-routine-id",
-              routineId,
-            );
-      const recent = sessions
-        .filter(
-          (session) =>
-            session.userId === userId &&
-            !session.deletedAt &&
-            session.status === "FINISHED" &&
-            session.finishedAt,
-        )
-        .sort((left, right) =>
-          (right.finishedAt || right.updatedAt).localeCompare(
-            left.finishedAt || left.updatedAt,
-          ),
-        )
-        .slice(0, take);
+      const recent = await collectFromCursor<WorkoutSessionRow>(
+        transaction
+          .objectStore(STORES.workoutSessions)
+          .index("by-user-status-finished-at"),
+        IDBKeyRange.bound(
+          [userId, "FINISHED", ""],
+          [userId, "FINISHED", "\uffff"],
+        ),
+        take,
+        (session) =>
+          session.routineId === routineId &&
+          !session.deletedAt &&
+          session.finishedAt !== null,
+      );
       return Promise.all(
         recent.map((session) => hydrateSession(transaction, session)),
       );

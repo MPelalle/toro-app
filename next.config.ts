@@ -11,6 +11,9 @@ function supabaseStorageOrigin() {
 const storageOrigin = supabaseStorageOrigin();
 
 const nextConfig: NextConfig = {
+  images: {
+    formats: ["image/avif", "image/webp"],
+  },
   async headers() {
     return [
       {

@@ -126,7 +126,7 @@ async function createPng(workout: CompletedWorkoutShareData) {
 
   const contentX = cardX + 24;
   const contentRight = cardX + CARD_WIDTH - 24;
-  const logo = await loadImage("/header.png");
+  const logo = await loadImage("/assets/header.webp");
   context.drawImage(logo, contentRight - 116, cardY + 31, 92, 92);
 
   // The canvas itself remains transparent. The shadow is painted only around

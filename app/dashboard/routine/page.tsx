@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CircleCheck, Dumbbell, Plus, TrendingUp } from "lucide-react";
+import { CircleCheck, Dumbbell, FolderPlus, Layers3, Plus, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   activateRoutineOfflineFirst,
@@ -9,9 +9,21 @@ import {
   Routine,
 } from "@/lib/routines";
 
+type TrainingFolder = {
+  id: string;
+  name: string;
+  kind: "PLAN" | "MESOCYCLE" | "SIX_MONTH_CYCLE";
+  routineIds: string[];
+};
+
 export default function RoutinePage() {
   const [routines, setRoutines] = useState<Routine[]>([]);
+  const [folders, setFolders] = useState<TrainingFolder[]>([]);
   const [error, setError] = useState("");
+  const [folderFormOpen, setFolderFormOpen] = useState(false);
+  const [folderName, setFolderName] = useState("");
+  const [folderKind, setFolderKind] = useState<TrainingFolder["kind"]>("PLAN");
+  const [savingFolder, setSavingFolder] = useState(false);
   const load = async () => {
     const result = await getRoutinesOfflineFirst(setRoutines);
     setRoutines(result.routines);
@@ -24,6 +36,18 @@ export default function RoutinePage() {
     });
     return () => window.clearTimeout(timer);
   }, []);
+
+  const loadFolders = async () => {
+    try {
+      const response = await fetch("/api/training-folders", { cache: "no-store" });
+      if (!response.ok) throw new Error("No pudimos cargar tus carpetas.");
+      setFolders(await response.json() as TrainingFolder[]);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No pudimos cargar tus carpetas.");
+    }
+  };
+
+  useEffect(() => { const timer = window.setTimeout(() => void loadFolders()); return () => window.clearTimeout(timer); }, []);
 
   const active = routines.find((routine) => routine.active) || routines[0];
   const complete =
@@ -48,6 +72,49 @@ export default function RoutinePage() {
           ? cause.message
           : "No pudimos activar la rutina.",
       );
+    }
+  };
+
+  const createFolder = async () => {
+    if (!folderName.trim() || savingFolder) return;
+    setSavingFolder(true);
+    setError("");
+    try {
+      const response = await fetch("/api/training-folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: folderName, kind: folderKind }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No pudimos crear la carpeta.");
+      setFolders((items) => [{ ...body, routineIds: [] }, ...items]);
+      setFolderName("");
+      setFolderFormOpen(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No pudimos crear la carpeta.");
+    } finally {
+      setSavingFolder(false);
+    }
+  };
+
+  const assignFolder = async (routineId: string, folderId: string | null) => {
+    setError("");
+    try {
+      const response = await fetch("/api/training-folders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ routineId, folderId }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No pudimos mover la rutina.");
+      setFolders((items) => items.map((folder) => ({
+        ...folder,
+        routineIds: folder.id === folderId
+          ? [...folder.routineIds.filter((id) => id !== routineId), routineId]
+          : folder.routineIds.filter((id) => id !== routineId),
+      })));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No pudimos mover la rutina.");
     }
   };
 
@@ -81,8 +148,32 @@ export default function RoutinePage() {
             >
               <Plus size={17} /> Nueva rutina
             </Link>
+            <button
+              type="button"
+              onClick={() => setFolderFormOpen((value) => !value)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 px-4 py-3 text-sm font-bold text-white/70 hover:bg-white/[.05]"
+            >
+              <FolderPlus size={17} /> Carpeta
+            </button>
           </div>
         </header>
+        {folderFormOpen && (
+          <section className="mt-5 rounded-2xl border border-[#b7ff00]/20 bg-[#10110e] p-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="min-w-48 flex-1">
+                <span className="mb-2 block text-xs font-semibold text-white/55">Nombre de carpeta</span>
+                <input value={folderName} onChange={(event) => setFolderName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void createFolder(); }} className="input" maxLength={80} placeholder="Ej.: Bloque fuerza octubre" />
+              </label>
+              <label>
+                <span className="mb-2 block text-xs font-semibold text-white/55">Tipo</span>
+                <select value={folderKind} onChange={(event) => setFolderKind(event.target.value as TrainingFolder["kind"])} className="input h-11">
+                  <option value="PLAN">Plan</option><option value="MESOCYCLE">Mesociclo</option><option value="SIX_MONTH_CYCLE">Ciclo de 6 meses</option>
+                </select>
+              </label>
+              <button type="button" onClick={() => void createFolder()} disabled={savingFolder || !folderName.trim()} className="h-11 rounded-xl bg-[#b7ff00] px-4 text-sm font-bold text-black disabled:opacity-50">{savingFolder ? "Creando…" : "Crear"}</button>
+            </div>
+          </section>
+        )}
         {error && (
           <p
             role="alert"
@@ -117,7 +208,7 @@ export default function RoutinePage() {
                 </Link>
               </div>
             </section>
-            {routines.length > 1 && (
+            {routines.length > 1 && !folders.length && (
               <section className="mt-6">
                 <p className="mb-3 text-xs font-bold uppercase tracking-[.18em] text-white/35">
                   Otras rutinas
@@ -155,6 +246,13 @@ export default function RoutinePage() {
                 </div>
               </section>
             )}
+            <TrainingFolders
+              routines={routines}
+              folders={folders}
+              activeId={active.id}
+              onActivate={activate}
+              onAssign={assignFolder}
+            />
             <section className="mt-8 grid gap-3 border-t border-white/[.07] pt-6 sm:grid-cols-3">
               <Metric
                 icon={<Dumbbell size={18} />}
@@ -202,6 +300,71 @@ function Empty() {
       </Link>
     </section>
   );
+}
+
+function TrainingFolders({
+  routines,
+  folders,
+  activeId,
+  onActivate,
+  onAssign,
+}: {
+  routines: Routine[];
+  folders: TrainingFolder[];
+  activeId: string;
+  onActivate: (id: string) => Promise<void>;
+  onAssign: (routineId: string, folderId: string | null) => Promise<void>;
+}) {
+  const assigned = new Set(folders.flatMap((folder) => folder.routineIds));
+  const unassigned = routines.filter((routine) => !assigned.has(routine.id));
+  return (
+    <section className="mt-7">
+      <div className="flex items-center gap-2">
+        <Layers3 size={17} className="text-[#b7ff00]" />
+        <div>
+          <p className="text-[10px] font-bold tracking-[.18em] text-[#b7ff00]/70">ORGANIZACIÓN</p>
+          <h2 className="mt-1 text-lg font-semibold">Planes y ciclos</h2>
+        </div>
+      </div>
+      {!folders.length && !unassigned.length ? null : (
+        <div className="mt-4 space-y-4">
+          {folders.map((folder) => {
+            const items = routines.filter((routine) => folder.routineIds.includes(routine.id));
+            return (
+              <article key={folder.id} className="rounded-[24px] border border-white/[.08] bg-[#10110e]/85 p-4 sm:p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div><p className="font-semibold">{folder.name}</p><p className="mt-1 text-[11px] font-bold uppercase tracking-[.12em] text-white/35">{folderLabel(folder.kind)} · {items.length} rutina{items.length === 1 ? "" : "s"}</p></div>
+                </div>
+                {!items.length ? <p className="mt-4 rounded-xl bg-black/20 px-3 py-3 text-xs text-white/40">Mové una rutina a esta carpeta desde el selector.</p> : <div className="mt-4 grid gap-2 sm:grid-cols-2">{items.map((routine) => <FolderRoutineCard key={routine.id} routine={routine} folders={folders} activeId={activeId} onActivate={onActivate} onAssign={onAssign} />)}</div>}
+              </article>
+            );
+          })}
+          {unassigned.length > 0 && <article className="rounded-[24px] border border-dashed border-white/10 bg-white/[.02] p-4 sm:p-5"><p className="text-xs font-bold uppercase tracking-[.14em] text-white/35">Sin carpeta</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{unassigned.map((routine) => <FolderRoutineCard key={routine.id} routine={routine} folders={folders} activeId={activeId} onActivate={onActivate} onAssign={onAssign} />)}</div></article>}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function FolderRoutineCard({
+  routine,
+  folders,
+  activeId,
+  onActivate,
+  onAssign,
+}: {
+  routine: Routine;
+  folders: TrainingFolder[];
+  activeId: string;
+  onActivate: (id: string) => Promise<void>;
+  onAssign: (routineId: string, folderId: string | null) => Promise<void>;
+}) {
+  const currentFolderId = folders.find((folder) => folder.routineIds.includes(routine.id))?.id || "";
+  return <article className="rounded-2xl border border-white/[.07] bg-black/20 p-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold">{routine.name}</p><p className="mt-1 text-xs text-white/40">{routine.days.join(", ")} · {routine.exercises.length} ejercicios</p></div>{routine.id === activeId && <span className="shrink-0 rounded-full bg-[#b7ff00]/10 px-2 py-1 text-[10px] font-bold text-[#b7ff00]">ACTIVA</span>}</div><div className="mt-3 flex items-center gap-2"><select value={currentFolderId} onChange={(event) => void onAssign(routine.id, event.target.value || null)} aria-label={`Mover ${routine.name} a una carpeta`} className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#151712] px-2 py-2 text-[11px] text-white/65"><option value="">Sin carpeta</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select>{routine.id !== activeId && <button type="button" onClick={() => void onActivate(routine.id)} className="shrink-0 text-xs font-bold text-[#b7ff00]">Activar</button>}<Link href={`/dashboard/routine/${routine.id}`} className="shrink-0 text-xs font-bold text-white/50 hover:text-white">Abrir</Link></div></article>;
+}
+
+function folderLabel(kind: TrainingFolder["kind"]) {
+  return kind === "MESOCYCLE" ? "Mesociclo" : kind === "SIX_MONTH_CYCLE" ? "Ciclo 6 meses" : "Plan";
 }
 
 function Metric({

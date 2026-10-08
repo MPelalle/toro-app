@@ -24,7 +24,8 @@ export async function getRoutinesOfflineFirst(onRemote?: (routines: Routine[]) =
   catch { return { routines, source: "cache" as const }; }
 }
 
-export async function getRoutineOfflineFirst(id: string, onRemote?: (routine: Routine) => void) {
+export async function getRoutineOfflineFirst(id: string, onRemote?: (routine: Routine) => void, initialRoutine?: Routine) {
+  if (initialRoutine?.id === id) return { routine: initialRoutine, source: "network" as const };
   const routine = await getCachedRoutine(id);
   if (routine) { void refreshRoutine(id, onRemote); return { routine, source: "cache" as const }; }
   try { const remote = await routineRequest<Routine>(`/api/routines/${id}`); await cacheRoutine(remote); return { routine: remote, source: "network" as const }; }

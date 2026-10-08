@@ -80,7 +80,7 @@ function LoginForm() {
       <div className="toro-auth-glow toro-auth-glow--sky" />
       <section className="toro-auth-card">
         <Link href="/" className="toro-auth-brand inline-flex" aria-label="Ir al inicio">
-          <Image src="/header.png" alt="TORO" width={40} height={40} priority />
+          <Image src="/assets/header.webp" alt="TORO" width={40} height={40} priority />
         </Link>
         <p className="toro-eyebrow">TU ESPACIO PERSONAL</p>
         <h1 className="toro-auth-title">Volvé a tu ritmo.</h1>

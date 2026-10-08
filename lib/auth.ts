@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { getPrisma } from "@/lib/prisma";
 
 const SESSION_COOKIE = "toro_session";
@@ -55,7 +56,12 @@ export const sessionCookie = (token: string, expiresAt: Date) => ({
   },
 });
 
-export async function getCurrentSession() {
+/**
+ * Authentication is read by layouts, pages and server actions in the same
+ * render. React's request cache makes those reads share one cookie lookup and
+ * one session query, without persisting a user's session across requests.
+ */
+export const getCurrentSession = cache(async () => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
@@ -64,7 +70,7 @@ export async function getCurrentSession() {
     include: { user: true },
   });
   return session?.user.emailVerifiedAt ? { ...session, token } : null;
-}
+});
 
 export async function refreshSessionIfNeeded(session: { id: string; token: string; expiresAt: Date }) {
   if (session.expiresAt.getTime() - Date.now() > SESSION_RENEWAL_WINDOW * 1000) return null;
@@ -73,9 +79,9 @@ export async function refreshSessionIfNeeded(session: { id: string; token: strin
   return { token: session.token, expiresAt };
 }
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async () => {
   return (await getCurrentSession())?.user || null;
-}
+});
 
 export async function deleteCurrentSession() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;

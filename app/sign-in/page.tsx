@@ -48,7 +48,7 @@ export default function RegisterPage() {
       <div className="toro-auth-glow toro-auth-glow--violet" />
       <section className="toro-auth-card">
         <Link href="/" className="toro-auth-brand inline-flex" aria-label="Ir al inicio">
-          <Image src="/header.png" alt="TORO" width={40} height={40} priority />
+          <Image src="/assets/header.webp" alt="TORO" width={40} height={40} priority />
         </Link>
         <p className="toro-eyebrow">EMPEZÁ HOY</p>
         <h1 className="toro-auth-title">Construí tu base.</h1>

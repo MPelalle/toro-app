@@ -8,6 +8,7 @@ import AmbientBackdrop from "../components/ambient-backdrop";
 import OfflineSyncIndicator from "./offline-sync-indicator";
 import OfflineReadiness from "./offline-readiness";
 import { getDashboardHeaderStats } from "@/lib/dashboard-header";
+import ActiveWorkoutNavbar from "./active-workout-navbar";
 
 
 export default async function DashboardLayout({
@@ -26,6 +27,7 @@ export default async function DashboardLayout({
       <OfflineReadiness user={{ id: user.id, email: user.email, name: user.name, username: user.username }} />
       <OfflineSyncIndicator />
       <ToroHeader stats={headerStats}/>
+      <ActiveWorkoutNavbar />
       <main className="toro-dashboard-content relative z-10 pb-28">
         <DashboardPageTransition>{children}</DashboardPageTransition>
       </main>

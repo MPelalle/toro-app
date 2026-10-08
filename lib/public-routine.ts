@@ -1,5 +1,6 @@
 import "server-only";
 
+import { revalidateTag, unstable_cache } from "next/cache";
 import { cache } from "react";
 import { getPrisma } from "@/lib/prisma";
 import { isUuid } from "@/lib/security";
@@ -22,11 +23,10 @@ function routineDays(value: unknown) {
 
 /**
  * This is deliberately viewerless: it only returns a routine whose author
- * explicitly chose the public routine visibility.  It does not use profile
+ * explicitly chose the public routine visibility. It does not use profile
  * activity, body data, diet data, or private profile fields.
  */
-export const getPublicRoutine = cache(async (routineId: string) => {
-  if (!isUuid(routineId)) return null;
+async function loadPublicRoutine(routineId: string) {
   const plan = await getPrisma().routinePlan.findFirst({
     where: { id: routineId, kind: "PERSONAL", isPublished: true },
     select: {
@@ -81,8 +81,26 @@ export const getPublicRoutine = cache(async (routineId: string) => {
       name: creatorName,
       nickname,
       avatarUrl: isPublicProfile ? plan.user.avatarUrl : null,
-      profilePath: isPublicProfile && nickname ? `/profile/${encodeURIComponent(nickname)}` : null,
+      profilePath:
+        isPublicProfile && nickname
+          ? `/profile/${encodeURIComponent(nickname)}`
+          : null,
     },
     exercises,
   };
+}
+
+const getCachedPublicRoutine = unstable_cache(
+  loadPublicRoutine,
+  ["toro-public-routine-v1"],
+  { revalidate: 60, tags: ["toro-public-routines"] },
+);
+
+export function revalidatePublicRoutines() {
+  revalidateTag("toro-public-routines", { expire: 0 });
+}
+
+export const getPublicRoutine = cache(async (routineId: string) => {
+  if (!isUuid(routineId)) return null;
+  return getCachedPublicRoutine(routineId);
 });

@@ -20,6 +20,7 @@ import {
   createLocalFreeWorkoutSession,
   createLocalWorkoutSession,
   getActiveLocalWorkoutSession,
+  getAnyActiveLocalWorkoutSession,
   getLocalWorkoutSession,
   getRecentLocalWorkoutSessions,
   saveLocalWorkoutSession,
@@ -35,6 +36,7 @@ import {
   type StoreName,
 } from "@/lib/offline/schema";
 import type { Routine } from "@/lib/routines";
+import type { WorkoutSessionRow } from "@/lib/offline/types";
 
 const routine: Routine = {
   id: "routine-1",
@@ -160,6 +162,25 @@ describe.sequential("persistencia offline de entrenamientos", () => {
     const recovered = await getActiveLocalWorkoutSession(routine.id);
     expect(recovered?.id).toBe(session.id);
     expect(recovered?.status).toBe("IN_PROGRESS");
+  });
+
+  it("busca la sesión activa más reciente por usuario con el índice local", async () => {
+    const first = await storedSession();
+    const second = await storedSession();
+    await inTransaction(STORES.workoutSessions, "readwrite", async (transaction) => {
+      const store = transaction.objectStore(STORES.workoutSessions);
+      for (const [session, updatedAt] of [
+        [first, "2026-10-06T10:00:00.000Z"],
+        [second, "2026-10-06T11:00:00.000Z"],
+      ] as const) {
+        const row = (await requestResult(store.get(session.id))) as WorkoutSessionRow;
+        store.put({ ...row, updatedAt });
+      }
+    });
+
+    expect((await getAnyActiveLocalWorkoutSession())?.id).toBe(second.id);
+    await activate("user-b");
+    expect(await getAnyActiveLocalWorkoutSession()).toBeUndefined();
   });
 
   it("persiste un entrenamiento libre y sus superseries sin una rutina asociada", async () => {
@@ -315,6 +336,7 @@ describe.sequential("persistencia offline de entrenamientos", () => {
     const history = await getRecentLocalWorkoutSessions(routine.id);
 
     expect(history.map((session) => session.id)).toEqual([second.id, first.id]);
+    expect((await getRecentLocalWorkoutSessions(routine.id, 1)).map((session) => session.id)).toEqual([second.id]);
     expect(history.every((session) => session.status === "FINISHED")).toBe(
       true,
     );

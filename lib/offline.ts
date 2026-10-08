@@ -19,6 +19,7 @@ import {
 import {
   createLocalFreeWorkoutSession,
   createLocalWorkoutSession,
+  getAnyActiveLocalWorkoutSession,
   getActiveLocalWorkoutSession,
   getLocalWorkoutSession,
   getRecentLocalWorkoutSessions,
@@ -96,6 +97,10 @@ export async function getActiveWorkoutSession(routineId: string | null) {
   return getActiveLocalWorkoutSession(routineId);
 }
 
+export async function getAnyActiveWorkoutSession() {
+  return getAnyActiveLocalWorkoutSession();
+}
+
 export async function getRecentWorkoutSessions(
   routineId: string | null,
   limit?: number,
@@ -106,6 +111,8 @@ export async function getRecentWorkoutSessions(
 export async function saveWorkoutSession(session: OfflineWorkoutSession) {
   const saved = await saveLocalWorkoutSession(session);
   emitSyncChange();
+  if (typeof window !== "undefined")
+    window.dispatchEvent(new CustomEvent("toro-workout-session-change", { detail: { id: saved.id, status: saved.status } }));
   return saved;
 }
 

@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { getPrisma } from "@/lib/prisma";
 import { ensureProfilePhotoBucket, getProfilePhotoStorageConfig, getProfilePhotoStorageConfigIssue, profilePhotoObjectUrl, profilePhotoUploadUrl } from "@/lib/profile-photo-storage";
 import { hasTrustedOrigin, originError } from "@/lib/security";
+import { revalidatePublicRoutines } from "@/lib/public-routine";
 
 const MAX_UPLOAD_BYTES = 650 * 1024;
 const MAX_REQUEST_BYTES = 700 * 1024;
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/user");
   if (user.nickname) revalidatePath(`/dashboard/community/${user.nickname}`);
+  revalidatePublicRoutines();
   return Response.json({ avatarUrl }, { status: 201 });
 }
 
@@ -90,5 +92,6 @@ export async function DELETE(request: Request) {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/user");
   if (user.nickname) revalidatePath(`/dashboard/community/${user.nickname}`);
+  revalidatePublicRoutines();
   return new Response(null, { status: 204 });
 }

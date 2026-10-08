@@ -1,6 +1,7 @@
 import "server-only";
 
 import { buildUserBadges, withBadgeTier, type BadgeTier, type UserBadge } from "@/lib/badges";
+import { unstable_cache } from "next/cache";
 import { getPrisma } from "@/lib/prisma";
 
 function argentinaDateKey(date = new Date()) {
@@ -121,4 +122,40 @@ export async function getUserBadgeProfile(userId: string, displayName: string, o
     ));
 
   return { displayName, badges };
+}
+
+const getCachedUserBadgeProfileImpl = unstable_cache(
+  async (userId: string, displayName: string) =>
+    getUserBadgeProfile(userId, displayName, { trackActivity: false }),
+  ["toro-user-badges-v1"],
+  { revalidate: 300 },
+);
+
+/** Dashboard-safe badge read: avoids recalculating all history per visit. */
+export async function getCachedUserBadgeProfile(userId: string, displayName: string) {
+  const profile = await getCachedUserBadgeProfileImpl(userId, displayName);
+  const prisma = getPrisma();
+  const awards = await prisma.userBadgeAward.findMany({
+    where: { userId },
+    select: { badgeId: true, tier: true },
+  });
+  const awardsByBadge = new Map(awards.map((award) => [award.badgeId, award.tier]));
+  const badges = profile.badges.map((badge) => {
+    const tier = Math.max(badge.tier, Math.min(4, awardsByBadge.get(badge.id) ?? 0)) as BadgeTier;
+    return withBadgeTier(badge, tier);
+  });
+
+  await Promise.all(
+    badges
+      .filter((badge) => badge.tier > (awardsByBadge.get(badge.id) ?? 0))
+      .map((badge) =>
+        prisma.userBadgeAward.upsert({
+          where: { userId_badgeId: { userId, badgeId: badge.id } },
+          update: { tier: badge.tier },
+          create: { userId, badgeId: badge.id, tier: badge.tier },
+        }),
+      ),
+  );
+
+  return { ...profile, badges };
 }

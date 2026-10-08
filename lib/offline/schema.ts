@@ -1,5 +1,5 @@
 export const OFFLINE_DATABASE_NAME = "toro-offline";
-export const OFFLINE_DATABASE_VERSION = 4;
+export const OFFLINE_DATABASE_VERSION = 5;
 
 export const STORES = {
   users: "users",
@@ -44,6 +44,8 @@ export function ensureSchema(database: IDBDatabase, transaction: IDBTransaction)
   ensureIndex(sessions, "by-user-id", "userId");
   ensureIndex(sessions, "by-routine-id", "routineId");
   ensureIndex(sessions, "by-sync-status", "syncStatus");
+  ensureIndex(sessions, "by-user-status-updated-at", ["userId", "status", "updatedAt"]);
+  ensureIndex(sessions, "by-user-status-finished-at", ["userId", "status", "finishedAt"]);
 
   const sessionExercises = getStore(STORES.workoutSessionExercises, "id");
   ensureIndex(sessionExercises, "by-session-id", "sessionId");

@@ -16,9 +16,14 @@ export async function getHabitsUser() {
 }
 
 export async function getHabits() {
-  const prisma = getPrisma();
   const user = await getHabitsUser();
-  return prisma.habit.findMany({ where: { userId: user.id }, include: { checkIns: { orderBy: { completedAt: "asc" } } }, orderBy: [{ status: "asc" }, { createdAt: "desc" }] });
+  return getHabitsForUser(user.id);
+}
+
+/** Use this from a page that already authenticated the request. */
+export async function getHabitsForUser(userId: string) {
+  const prisma = getPrisma();
+  return prisma.habit.findMany({ where: { userId }, include: { checkIns: { orderBy: { completedAt: "asc" } } }, orderBy: [{ status: "asc" }, { createdAt: "desc" }] });
 }
 
 export async function getHabit(id: string) {

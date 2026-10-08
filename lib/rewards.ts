@@ -1,6 +1,7 @@
 import "server-only";
 
 import { appCalendarDate, appDateKey, dateAtNoonUTC, storedDateKey } from "@/lib/app-date";
+import { unstable_cache } from "next/cache";
 import type { ToroReward, ToroRewards } from "@/lib/reward-types";
 import { getPrisma } from "@/lib/prisma";
 
@@ -79,4 +80,16 @@ export async function getToroRewards(userId: string): Promise<ToroRewards> {
   ];
   const highestUnlocked = [...rewards].filter((item) => item.unlocked).sort((a, b) => b.discount - a.discount)[0] || null;
   return { rewards, highestUnlocked };
+}
+
+// Rewards depend on historical aggregates. A brief shared cache keeps opening
+// Inicio from replaying that history while still making progress visible soon.
+const getCachedToroRewardsImpl = unstable_cache(
+  async (userId: string) => getToroRewards(userId),
+  ["toro-rewards-v1"],
+  { revalidate: 300 },
+);
+
+export function getCachedToroRewards(userId: string) {
+  return getCachedToroRewardsImpl(userId);
 }

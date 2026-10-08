@@ -157,7 +157,7 @@ export const ToroWelcomeMenu: React.FC = () => {
   {/* Header */}
   <div className="relative z-10 flex flex-col items-center drop-shadow-[0_10px_15px_rgba(0,0,0,0.7)]">
     <Image
-      src="/header.png"
+      src="/assets/header.webp"
       alt="Toro Logo"
       width={100}
       height={150}

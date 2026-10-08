@@ -636,6 +636,11 @@ export default async function HabitDetailPage({
                         Completado
                       </span>
                     )}
+                    {item?.feeling && (
+                      <span className="rounded-full bg-white/[.06] px-2 py-1 text-[10px] font-semibold text-white/60">
+                        {habitFeelingLabel(item.feeling)}
+                      </span>
+                    )}
 
                   </div>
 
@@ -865,6 +870,10 @@ export default async function HabitDetailPage({
 |--------------------------------------------------------------------------
 */
 
+function habitFeelingLabel(feeling: "VERY_DIFFICULT" | "DIFFICULT" | "NEUTRAL" | "EASY" | "VERY_EASY") {
+  return { VERY_DIFFICULT: "Muy difícil", DIFFICULT: "Costó", NEUTRAL: "Normal", EASY: "Fácil", VERY_EASY: "Muy fácil" }[feeling];
+}
+
 function SectionHeader({
   eyebrow,
   title,
@@ -939,4 +948,3 @@ function MetricCard({
     </div>
   );
 }
-

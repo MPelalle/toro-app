@@ -292,7 +292,7 @@ export default function ToroSidebar({
                     "
                   >
                     <Image
-                    src={"/header.png"}
+                    src={"/assets/header.webp"}
                     alt="Logo de toro"
                     height={90}
                     width={90}
@@ -696,7 +696,7 @@ export default function ToroSidebar({
                   />
 
                   <Image
-                    src={"/kultur.png"}
+                    src={"/assets/kultur.webp"}
                     alt="Logo de toro"
                     height={50}
                     width={50}

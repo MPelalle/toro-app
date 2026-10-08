@@ -7,6 +7,7 @@ import { deleteCurrentSession, getCurrentUser, SESSION_COOKIE } from "@/lib/auth
 import { getPrisma } from "@/lib/prisma";
 import { validateNickname } from "@/lib/community";
 import { isKnownProfileImageUrlForUser } from "@/lib/profile-photo-storage";
+import { revalidatePublicRoutines } from "@/lib/public-routine";
 
 export async function updateProfile(formData: FormData) {
   const user = await getCurrentUser();
@@ -30,6 +31,7 @@ export async function updateProfile(formData: FormData) {
   catch { throw new Error("Ese nickname ya está en uso."); }
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/user");
+  revalidatePublicRoutines();
 }
 
 export async function deleteAccount() {

@@ -4,31 +4,16 @@ import Link from "next/link";
 import { Apple, ArrowRight, Bell, Check, CheckCircle2, Dumbbell, Library, MessageCircle, Play, Plus, TrendingUp, UserRound, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { APP_TIME_ZONE, appCalendarDate, appDateKey } from "@/lib/app-date";
-import { dietRequest, Diet, type DailyDietLog, today } from "@/lib/diet";
-import { getActiveWorkoutSession, getRecentWorkoutSessions, isOfflineUserReady } from "@/lib/offline";
-import { getRoutinesOfflineFirst, Routine } from "@/lib/routines";
+import { dietRequest, type DailyDietLog, today } from "@/lib/diet";
+import { getActiveWorkoutSession, getCachedRoutines, getRecentWorkoutSessions, isOfflineUserReady } from "@/lib/offline";
+import type { DashboardData, DashboardDiet } from "@/lib/dashboard-data";
+import type { Routine } from "@/lib/routines";
 import { UserBadgeStrip } from "@/components/badges/UserBadges";
-import type { UserBadge } from "@/lib/badges";
-import type { ToroRewards } from "@/lib/reward-types";
 import { RewardsTeaser } from "@/components/rewards/RewardsPanel";
 import { CheckInButton } from "./habits/check-in-button";
 
 const weekdays = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const trainingDays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-
-type CommunityOverview = {
-  friends: Array<{ id: string; name: string; nickname: string | null; presence: "TRAINING" | "ONLINE" | "OFFLINE" }>;
-  routines: Array<{ id: string; name: string; exerciseCount: number; canReview: boolean; members: Array<{ id: string; name: string }> }>;
-  me: {
-    profile: { name: string; nickname: string | null; avatarUrl: string | null };
-    friendCount: number;
-    publishedRoutineCount: number;
-    unreadNotifications: number;
-    lastWorkout: { routineName: string; date: string; durationSeconds: number; volume: number } | null;
-    lastPost: { content: string; date: string } | null;
-    lastMessage: { content: string; date: string; author: { name: string; nickname: string | null } } | null;
-  };
-};
 
 type HabitPlanItem = {
   id: string;
@@ -41,6 +26,18 @@ type HabitsSummary = {
   active: number;
   completed: number;
   items: HabitPlanItem[];
+};
+
+type CommunityOverview = {
+  me: {
+    profile: { name: string; nickname: string | null; avatarUrl: string | null };
+    friendCount: number;
+    publishedRoutineCount: number;
+    unreadNotifications: number;
+    lastWorkout: { routineName: string; date: string; durationSeconds: number; volume: number } | null;
+    lastPost: { content: string; date: string } | null;
+    lastMessage: { content: string; date: string; author: { name: string; nickname: string | null } } | null;
+  };
 };
 
 type TrainingPlan = {
@@ -81,13 +78,10 @@ function getTrainingPlan(routine?: Routine): TrainingPlan {
   };
 }
 
-export default function DashboardOverview({ name, badges, habits }: { name: string; badges: UserBadge[]; habits: HabitsSummary }) {
-  const [diet, setDiet] = useState<Diet | null>(null);
-  const [routines, setRoutines] = useState<Routine[]>([]);
-  const [community, setCommunity] = useState<CommunityOverview | null>(null);
-  const [rewards, setRewards] = useState<ToroRewards | null>(null);
-  const [dietReady, setDietReady] = useState(false);
-  const [routinesReady, setRoutinesReady] = useState(false);
+export default function DashboardOverview({ data }: { data: DashboardData }) {
+  const { user, badges, habits, training: initialTraining, community, rewards } = data;
+  const [diet, setDiet] = useState<DashboardDiet | null>(data.diet);
+  const [routines, setRoutines] = useState<Routine[]>(initialTraining ? [initialTraining] : []);
   const [mealPending, setMealPending] = useState<string | null>(null);
   const [mealError, setMealError] = useState("");
   const [activeSessionRoutineId, setActiveSessionRoutineId] = useState<string | null>(null);
@@ -95,54 +89,24 @@ export default function DashboardOverview({ name, badges, habits }: { name: stri
 
   useEffect(() => {
     let mounted = true;
-    let routinesRequest = 0;
-    const updateRoutines = (items: Routine[]) => {
-      if (mounted) setRoutines(items);
-    };
-    const refreshRoutines = async () => {
-      const request = ++routinesRequest;
-      if (!(await isOfflineUserReady().catch(() => false)) || !mounted || request !== routinesRequest) return;
+    const refreshOfflineRoutines = async () => {
+      if (!(await isOfflineUserReady().catch(() => false)) || !mounted) return;
       try {
-        const result = await getRoutinesOfflineFirst((items) => {
-          if (mounted && request === routinesRequest) updateRoutines(items);
-        });
-        if (mounted && request === routinesRequest) updateRoutines(result.routines);
+        const cachedRoutines = await getCachedRoutines();
+        if (mounted && cachedRoutines.length) setRoutines(cachedRoutines);
       } catch {
-        // The empty state remains available if local storage and the network both fail.
-      } finally {
-        if (mounted && request === routinesRequest) setRoutinesReady(true);
+        // The server snapshot remains available if local storage cannot be read.
       }
     };
     const onOfflineReadiness = (event: Event) => {
-      if ((event as CustomEvent<{ state?: string }>).detail?.state === "ready") void refreshRoutines();
+      if ((event as CustomEvent<{ state?: string }>).detail?.state === "ready") void refreshOfflineRoutines();
     };
 
     window.addEventListener("toro-offline-readiness", onOfflineReadiness);
-    void dietRequest<Diet[]>("/api/diets")
-      .then((items) => {
-        if (mounted) setDiet(items.find((item) => item.active) || items[0] || null);
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (mounted) setDietReady(true);
-      });
-    void refreshRoutines();
-    void fetch("/api/community", { cache: "no-store" })
-      .then((response) => response.ok ? response.json() as Promise<CommunityOverview> : null)
-      .then((data) => {
-        if (mounted) setCommunity(data);
-      })
-      .catch(() => {
-        if (mounted) setCommunity(null);
-      });
-    void fetch("/api/rewards", { cache: "no-store" })
-      .then((response) => response.ok ? response.json() as Promise<ToroRewards> : null)
-      .then((data) => { if (mounted) setRewards(data); })
-      .catch(() => { if (mounted) setRewards(null); });
+    void refreshOfflineRoutines();
 
     return () => {
       mounted = false;
-      routinesRequest += 1;
       window.removeEventListener("toro-offline-readiness", onOfflineReadiness);
     };
   }, []);
@@ -225,7 +189,7 @@ export default function DashboardOverview({ name, badges, habits }: { name: stri
           <div>
             <p className="text-[10px] font-bold tracking-[.22em] text-[#b7ff00]/70">PANEL DE HOY</p>
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              <h1 className="text-4xl font-semibold tracking-[-.06em] sm:text-5xl">Hola, {name}.</h1>
+              <h1 className="text-4xl font-semibold tracking-[-.06em] sm:text-5xl">Hola, {user.displayName}.</h1>
               <UserBadgeStrip badges={badges} size="md" />
             </div>
             <p className="mt-3 capitalize text-sm text-white/40">{date}. Un paso a la vez, pero con intención.</p>
@@ -244,8 +208,8 @@ export default function DashboardOverview({ name, badges, habits }: { name: stri
           mealsDone={mealsDone}
           mealPending={mealPending}
           mealError={mealError}
-          routineLoading={!routinesReady}
-          dietLoading={!dietReady}
+          routineLoading={false}
+          dietLoading={false}
           onCompleteNextMeal={completeNextMeal}
         />
 
@@ -270,7 +234,7 @@ function TodayPlan({
   onCompleteNextMeal,
 }: {
   routine?: Routine;
-  diet: Diet | null;
+  diet: DashboardDiet | null;
   habits: HabitsSummary;
   activeSession: boolean;
   trainingCompleted: boolean;
@@ -385,9 +349,9 @@ function PlanNutrition({
   loading,
   onCompleteNextMeal,
 }: {
-  diet: Diet | null;
+  diet: DashboardDiet | null;
   mealsDone: number;
-  nextMeal?: Diet["meals"][number];
+  nextMeal?: DashboardDiet["meals"][number];
   mealPending: string | null;
   loading: boolean;
   onCompleteNextMeal: () => Promise<void>;
@@ -500,44 +464,6 @@ function MySocialSummary({ community }: { community: CommunityOverview | null })
 }
 
 function SocialTile({ icon, label, detail, date }: { icon: React.ReactNode; label: string; detail: string; date?: string }) { return <article className="min-w-0 rounded-2xl border border-white/[.07] bg-black/15 p-4"><div className="flex items-center justify-between gap-2 text-[#b7ff00]"><span>{icon}</span>{date && <span className="text-[10px] font-medium text-white/30">{new Date(date).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}</span>}</div><p className="mt-4 text-xs font-semibold text-white/65">{label}</p><p className="mt-1 line-clamp-2 text-sm leading-5 text-white/40">{detail}</p></article>; }
-
-// The compact social pulse above replaces this fuller section on Inicio.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function CommunitySummary({ community }: { community: CommunityOverview | null }) {
-  const connected = community?.friends.filter((friend) => friend.presence !== "OFFLINE") || [];
-  const routines = community?.routines || [];
-  return (
-    <section className="mt-6 rounded-[30px] border border-white/8 bg-[#10110e]/90 p-5 sm:p-7">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-bold tracking-[.2em] text-[#b7ff00]/70">COMUNIDAD</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight">Tu equipo en TORO</h2>
-        </div>
-        <Link href="/dashboard/community" className="inline-flex items-center gap-2 text-sm font-semibold text-[#b7ff00]">Ver comunidad <ArrowRight size={15} /></Link>
-      </div>
-      {!community ? <p className="mt-5 text-sm text-white/40">Cargando tu comunidad…</p> : (
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          <article className="rounded-2xl border border-white/[.07] bg-black/15 p-4">
-            <div className="flex items-center gap-2 text-sky-200"><UsersRound size={17} /><p className="text-sm font-semibold">Amigos conectados</p></div>
-            {!community.friends.length ? <p className="mt-4 text-sm leading-6 text-white/40">Todavía no tenés amigos. Cuando los agregues, acá vas a ver quién está conectado.</p> : !connected.length ? <p className="mt-4 text-sm leading-6 text-white/40">No hay amigos conectados ahora.</p> : (
-              <div className="mt-4 space-y-2">
-                {connected.slice(0, 3).map((friend) => <div key={friend.id} className="flex items-center justify-between rounded-xl bg-white/[.04] px-3 py-2"><span className="text-sm font-semibold">{friend.name}</span><span className={`text-xs font-semibold ${friend.presence === "TRAINING" ? "text-[#b7ff00]" : "text-sky-200"}`}>{friend.presence === "TRAINING" ? "Entrenando" : "En línea"}</span></div>)}
-              </div>
-            )}
-          </article>
-          <article className="rounded-2xl border border-white/[.07] bg-black/15 p-4">
-            <div className="flex items-center gap-2 text-[#b7ff00]"><Dumbbell size={17} /><p className="text-sm font-semibold">Rutinas compartidas</p></div>
-            {!routines.length ? <p className="mt-4 text-sm leading-6 text-white/40">No hay rutinas compartidas todavía.</p> : (
-              <div className="mt-4 space-y-2">
-                {routines.slice(0, 3).map((routine) => <Link key={routine.id} href={routine.canReview ? `/dashboard/community/routines/${routine.id}` : `/dashboard/routine/${routine.id}`} className="flex items-center justify-between gap-3 rounded-xl bg-white/[.04] px-3 py-2 transition hover:bg-white/[.08]"><span className="min-w-0"><span className="block truncate text-sm font-semibold">{routine.name}</span><span className="block text-xs text-white/40">{routine.exerciseCount} ejercicio{routine.exerciseCount === 1 ? "" : "s"}</span></span><ArrowRight size={15} className="shrink-0 text-[#b7ff00]" /></Link>)}
-              </div>
-            )}
-          </article>
-        </div>
-      )}
-    </section>
-  );
-}
 
 // The daily-plan cards supersede these secondary overview cards on Inicio.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
