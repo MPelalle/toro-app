@@ -261,7 +261,7 @@ describe.sequential("persistencia offline de entrenamientos", () => {
 
   it("preserva una copia local cuando el servidor informa un conflicto", async () => {
     const session = await storedSession();
-    mockFetch(() =>
+    const fetchMock = mockFetch(() =>
       Response.json(
         {
           error: "Conflicto",
@@ -271,9 +271,15 @@ describe.sequential("persistencia offline de entrenamientos", () => {
       ),
     );
     await synchronizePendingWorkoutSessions();
+    await retryPendingOperationsManually();
     const conflicts = await getUnresolvedConflicts();
     const conflicted = await getLocalWorkoutSession(session.id);
     expect(conflicts).toHaveLength(1);
+    expect(
+      fetchMock.mock.calls.filter(([url]) => url === "/api/workout-sessions/sync"),
+    ).toHaveLength(1);
+    expect(await failedOperationCount()).toBe(1);
+    expect(await pendingOperationCount()).toBe(0);
     expect(conflicts[0]).toMatchObject({
       entityId: session.id,
       userId: "user-a",

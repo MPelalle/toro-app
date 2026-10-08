@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { prepareOfflineTraining, retryFailedSyncOperations, setActiveOfflineUser, syncPendingSessions } from "@/lib/offline";
 import type { OfflineIdentity } from "./repositories/identity";
-import { failedOperationCount, pendingOperationCount, unsyncedOperationCount } from "./repositories/operations";
+import { getOperationCounts } from "./repositories/operations";
 import { getActiveUserSyncMetadata } from "./repositories/metadata";
 import { getConnectivitySnapshot, startConnectivityMonitoring, subscribeConnectivity, verifyConnectivity, type ConnectivitySnapshot } from "./connectivity/status";
 import { getSyncRuntimeSnapshot, subscribeSyncRuntime, type SyncRuntimeSnapshot } from "./sync/runtime";
@@ -31,6 +31,8 @@ export function useConnectivity() {
 export type SyncStatus = SyncRuntimeSnapshot & {
   pendingOperations: number;
   failedOperations: number;
+  retryableOperations: number;
+  conflictedOperations: number;
   unsyncedOperations: number;
   syncAvailable: () => Promise<void>;
   syncNow: () => Promise<void>;
@@ -39,16 +41,14 @@ export type SyncStatus = SyncRuntimeSnapshot & {
 
 export function useSyncStatus(): SyncStatus {
   const [runtime, setRuntime] = useState<SyncRuntimeSnapshot>(() => getSyncRuntimeSnapshot());
-  const [counts, setCounts] = useState({ pendingOperations: 0, failedOperations: 0, unsyncedOperations: 0 });
+  const [counts, setCounts] = useState({ pendingOperations: 0, failedOperations: 0, retryableOperations: 0, conflictedOperations: 0, unsyncedOperations: 0 });
 
   const refresh = useCallback(async () => {
-    const [pendingOperations, failedOperations, unsyncedOperations, lastSync] = await Promise.all([
-      pendingOperationCount(),
-      failedOperationCount(),
-      unsyncedOperationCount(),
+    const [operationCounts, lastSync] = await Promise.all([
+      getOperationCounts(),
       getActiveUserSyncMetadata("last-successful-sync"),
     ]);
-    setCounts({ pendingOperations, failedOperations, unsyncedOperations });
+    setCounts(operationCounts);
     if (lastSync?.value) setRuntime((current) => current.lastSyncedAt ? current : { ...current, lastSyncedAt: lastSync.value });
   }, []);
 
@@ -78,8 +78,8 @@ export function useSyncStatus(): SyncStatus {
 }
 
 export function usePendingOperations() {
-  const { pendingOperations, failedOperations, unsyncedOperations, refresh } = useSyncStatus();
-  return { pendingOperations, failedOperations, unsyncedOperations, refresh };
+  const { pendingOperations, failedOperations, retryableOperations, conflictedOperations, unsyncedOperations, refresh } = useSyncStatus();
+  return { pendingOperations, failedOperations, retryableOperations, conflictedOperations, unsyncedOperations, refresh };
 }
 
 export function useOfflineReady(user: OfflineIdentity) {

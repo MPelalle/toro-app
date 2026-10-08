@@ -46,6 +46,37 @@ export async function failedOperationCount() {
   });
 }
 
+export async function retryableOperationCount() {
+  const userId = await getActiveOfflineUserId();
+  return inTransaction(STORES.syncQueue, "readonly", async (transaction) => {
+    const operations = await requestResult(transaction.objectStore(STORES.syncQueue).getAll()) as PendingOperation[];
+    return operations.filter((operation) => operation.userId === userId && (operation.status === "failed" || operation.status === "exhausted")).length;
+  });
+}
+
+export async function conflictedOperationCount() {
+  const userId = await getActiveOfflineUserId();
+  return inTransaction(STORES.syncQueue, "readonly", async (transaction) => {
+    const operations = await requestResult(transaction.objectStore(STORES.syncQueue).getAll()) as PendingOperation[];
+    return operations.filter((operation) => operation.userId === userId && operation.status === "conflict").length;
+  });
+}
+
+export async function getOperationCounts() {
+  const userId = await getActiveOfflineUserId();
+  return inTransaction(STORES.syncQueue, "readonly", async (transaction) => {
+    const operations = await requestResult(transaction.objectStore(STORES.syncQueue).getAll()) as PendingOperation[];
+    const userOperations = operations.filter((operation) => operation.userId === userId);
+    return {
+      pendingOperations: userOperations.filter((operation) => operation.status !== "exhausted" && operation.status !== "conflict").length,
+      failedOperations: userOperations.filter((operation) => operation.status === "failed" || operation.status === "exhausted" || operation.status === "conflict").length,
+      retryableOperations: userOperations.filter((operation) => operation.status === "failed" || operation.status === "exhausted").length,
+      conflictedOperations: userOperations.filter((operation) => operation.status === "conflict").length,
+      unsyncedOperations: userOperations.length,
+    };
+  });
+}
+
 /** Includes failed and conflict records, which still need a user's decision before logout. */
 export async function unsyncedOperationCount() {
   const userId = await getActiveOfflineUserId();
@@ -121,7 +152,7 @@ export async function retryOperationsManually() {
     const store = transaction.objectStore(STORES.syncQueue);
     const operations = await requestResult(store.getAll()) as PendingOperation[];
     const now = new Date().toISOString();
-    operations.filter((operation) => operation.userId === userId && (operation.status === "failed" || operation.status === "exhausted" || operation.status === "conflict")).forEach((operation) => {
+    operations.filter((operation) => operation.userId === userId && (operation.status === "failed" || operation.status === "exhausted")).forEach((operation) => {
       store.put({ ...operation, status: "pending", attempts: 0, error: null, nextRetryAt: now, updatedAt: now });
     });
   });

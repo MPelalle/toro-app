@@ -707,6 +707,10 @@ export default function RoutineDetailClient({
   };
   const finish = async () => {
     if (!session) return;
+    if (!session.exercises.length) {
+      setError("Agregá al menos un ejercicio antes de finalizar el entrenamiento.");
+      return;
+    }
     const finishedAt = new Date().toISOString();
     try {
       const saved = await persist({

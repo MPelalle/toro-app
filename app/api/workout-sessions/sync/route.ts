@@ -73,8 +73,13 @@ const nullableText = (value: unknown, maximum: number) =>
     ? null
     : String(value).trim().slice(0, maximum);
 
-function readSession(body: unknown): IncomingSession | null {
-  if (!isRecord(body) || !isRecord(body.session)) return null;
+type SessionReadResult =
+  | { session: IncomingSession; error?: never }
+  | { session: null; error: string };
+
+function readSession(body: unknown): SessionReadResult {
+  if (!isRecord(body) || !isRecord(body.session))
+    return { session: null, error: "La solicitud no contiene una sesión válida." };
   const raw = body.session;
   const id = String(raw.id || "");
   const routineId =
@@ -104,31 +109,23 @@ function readSession(body: unknown): IncomingSession | null {
         ? raw.emotionalState
         : null;
   const notes = nullableText(raw.notes, 2_000);
-  if (
-    !isUuid(String(body.operationId || "")) ||
-    !isUuid(id) ||
-    (routineId !== null && !isUuid(routineId)) ||
-    (status !== "IN_PROGRESS" && status !== "FINISHED") ||
-    !startedAt ||
-    !updatedAt ||
-    !clientUpdatedAt ||
-    version === null ||
+  if (!isUuid(String(body.operationId || "")) || !isUuid(id) ||
+    (routineId !== null && !isUuid(routineId)))
+    return { session: null, error: "Falta un identificador válido de sesión, rutina u operación." };
+  if (status !== "IN_PROGRESS" && status !== "FINISHED")
+    return { session: null, error: "El estado del entrenamiento no es válido." };
+  if (!startedAt || !updatedAt || !clientUpdatedAt || version === null ||
     (raw.finishedAt !== null && !finishedAt) ||
-    (status === "FINISHED" && !finishedAt) ||
-    (durationSeconds === null &&
-      raw.durationSeconds !== null &&
-      raw.durationSeconds !== undefined) ||
-    (emotionalRating === null &&
-      raw.emotionalRating !== null &&
-      raw.emotionalRating !== undefined) ||
-    (emotionalState === null &&
-      raw.emotionalState !== null &&
-      raw.emotionalState !== undefined) ||
-    !Array.isArray(raw.exercises) ||
-    raw.exercises.length > 60 ||
-    (status === "FINISHED" && !raw.exercises.length)
-  )
-    return null;
+    (status === "FINISHED" && !finishedAt))
+    return { session: null, error: "Faltan fechas o una versión válida del entrenamiento." };
+  if ((durationSeconds === null && raw.durationSeconds !== null && raw.durationSeconds !== undefined) ||
+    (emotionalRating === null && raw.emotionalRating !== null && raw.emotionalRating !== undefined) ||
+    (emotionalState === null && raw.emotionalState !== null && raw.emotionalState !== undefined))
+    return { session: null, error: "La duración o la información post-entrenamiento no es válida." };
+  if (!Array.isArray(raw.exercises) || raw.exercises.length > 60)
+    return { session: null, error: "La lista de ejercicios no es válida." };
+  if (status === "FINISHED" && !raw.exercises.length)
+    return { session: null, error: "Agregá al menos un ejercicio antes de finalizar el entrenamiento." };
   const exercises: IncomingExercise[] = [];
   for (const [position, item] of raw.exercises.entries()) {
     if (
@@ -145,10 +142,11 @@ function readSession(body: unknown): IncomingSession | null {
       !item.sets.length ||
       item.sets.length > 20
     )
-      return null;
+      return { session: null, error: `El ejercicio ${position + 1} no tiene un identificador, nombre, músculo o series válidos.` };
     const sets: IncomingSet[] = [];
     for (const [setIndex, set] of item.sets.entries()) {
-      if (!isRecord(set) || !isUuid(String(set.id || ""))) return null;
+      if (!isRecord(set) || !isUuid(String(set.id || "")))
+        return { session: null, error: `La serie ${setIndex + 1} del ejercicio ${position + 1} no tiene un identificador válido.` };
       const targetReps = numberInRange(set.targetReps, 1, 100, true);
       const targetWeight = numberInRange(set.targetWeight, 0, 1000);
       const reps =
@@ -175,7 +173,7 @@ function readSession(body: unknown): IncomingSession | null {
         !["WARMUP", "NORMAL", "DROP", "FAILURE"].includes(String(kind)) ||
         typeof set.completed !== "boolean"
       )
-        return null;
+        return { session: null, error: `Los datos de la serie ${setIndex + 1} del ejercicio ${position + 1} no son válidos.` };
       sets.push({
         id: String(set.id),
         setNumber: setIndex + 1,
@@ -201,7 +199,7 @@ function readSession(body: unknown): IncomingSession | null {
       item.restSeconds !== null &&
       item.restSeconds !== undefined
     )
-      return null;
+      return { session: null, error: `El descanso del ejercicio ${position + 1} debe ser un número entero entre 15 y 600 segundos.` };
     exercises.push({
       id: String(item.id),
       routineExerciseId:
@@ -217,7 +215,7 @@ function readSession(body: unknown): IncomingSession | null {
       sets,
     });
   }
-  return {
+  return { session: {
     id,
     routineId,
     status,
@@ -231,16 +229,17 @@ function readSession(body: unknown): IncomingSession | null {
     updatedAt,
     clientUpdatedAt,
     exercises,
-  };
+  } };
 }
 
 export async function POST(request: Request) {
   if (!hasTrustedOrigin(request)) return originError();
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "No autorizado" }, { status: 401 });
-  const session = readSession(await request.json().catch(() => null));
-  if (!session)
-    return Response.json({ error: "Sesión inválida" }, { status: 400 });
+  const parsed = readSession(await request.json().catch(() => null));
+  if (!parsed.session)
+    return Response.json({ error: parsed.error }, { status: 400 });
+  const session = parsed.session;
   const prisma = getPrisma();
   const routine = session.routineId
     ? await prisma.routinePlan.findFirst({
