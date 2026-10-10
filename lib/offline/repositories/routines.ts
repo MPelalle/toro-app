@@ -19,7 +19,7 @@ async function writeRoutine(transaction: IDBTransaction, routine: Routine, userI
   const now = new Date().toISOString();
   const createdAt = existing?.createdAt ?? routine.createdAt ?? now;
   const base = { ...routineMetadata(routine.id, userId, createdAt, now), version: existing?.version ?? 1 };
-  routines.put({ ...base, name: routine.name, type: routine.type, kind: routine.kind, canEdit: routine.canEdit, active: routine.active, isPublished: routine.isPublished ?? false, publishedAt: routine.publishedAt ?? null } satisfies LocalRoutine);
+  routines.put({ ...base, name: routine.name, notes: routine.notes ?? "", type: routine.type, kind: routine.kind, canEdit: routine.canEdit, active: routine.active, isPublished: routine.isPublished ?? false, publishedAt: routine.publishedAt ?? null } satisfies LocalRoutine);
 
   const daysStore = transaction.objectStore(STORES.routineDays);
   const exercisesStore = transaction.objectStore(STORES.routineExercises);
@@ -97,6 +97,7 @@ async function hydrateRoutine(transaction: IDBTransaction, routine: LocalRoutine
   return {
     id: routine.id,
     name: routine.name,
+    notes: routine.notes ?? "",
     type: routine.type,
     kind: routine.kind,
     canEdit: routine.canEdit,

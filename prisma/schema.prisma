@@ -435,6 +435,7 @@ model RoutinePlan {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String   @map("user_id") @db.Uuid
   name      String
+  notes     String?
   type      String
   kind      RoutineKind @default(PERSONAL)
   days      Json

@@ -33,6 +33,7 @@ function readRoutine(body: unknown) {
   const value = body as Record<string, unknown>;
   const id = value.id === undefined ? undefined : String(value.id);
   const name = String(value.name || "").trim();
+  const notes = String(value.notes || "").trim();
   const type = String(value.type || "");
   const routineDays = Array.isArray(value.days) ? value.days.map(String) : [];
   const sourceExercises = Array.isArray(value.exercises) ? value.exercises : [];
@@ -40,6 +41,7 @@ function readRoutine(body: unknown) {
     (id !== undefined && !isUuid(id)) ||
     !name ||
     name.length > 80 ||
+    notes.length > 2000 ||
     !types.includes(type) ||
     !routineDays.length ||
     routineDays.length > 7 ||
@@ -131,6 +133,7 @@ function readRoutine(body: unknown) {
     ? {
         id,
         name,
+        notes,
         type,
         days: routineDays,
         exercises: exercises as NonNullable<(typeof exercises)[number]>[],

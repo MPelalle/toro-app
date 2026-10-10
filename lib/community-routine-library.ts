@@ -296,6 +296,7 @@ export async function importPublicRoutineToPersonal(viewerId: string, sourceRout
           userId: viewerId,
           updatedById: viewerId,
           name,
+          notes: source.notes,
           type: source.type,
           kind: "PERSONAL",
           days: source.days === null ? [] : source.days,

@@ -30,6 +30,7 @@ export default async function RoutineDetailPage({
       userId: true,
       kind: true,
       name: true,
+      notes: true,
       type: true,
       days: true,
       active: true,
@@ -62,6 +63,7 @@ export default async function RoutineDetailPage({
   const routine: Routine = {
     id: plan.id,
     name: plan.name,
+    notes: plan.notes || "",
     type: plan.type,
     kind: plan.kind,
     canEdit: plan.userId === user.id,

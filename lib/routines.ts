@@ -3,7 +3,7 @@ import { enqueueRoutineRequest } from "@/lib/offline/repositories/operations";
 import { setRoutineSyncStatus } from "@/lib/offline/repositories/routines";
 
 export type RoutineExercise = { id: string; catalogExerciseId?: string | null; name: string; muscle: string; sets: number; reps: number; weight: number; technique: string; restSeconds?: number | null; supersetGroupId?: string | null; completed: boolean | null; actualReps: number | null; note: string; trainingDay: string };
-export type Routine = { id: string; name: string; type: string; kind?: "PERSONAL" | "SHARED"; canEdit?: boolean; days: string[]; active: boolean; isPublished?: boolean; publishedAt?: string | null; exercises: RoutineExercise[]; createdAt: string };
+export type Routine = { id: string; name: string; notes?: string; type: string; kind?: "PERSONAL" | "SHARED"; canEdit?: boolean; days: string[]; active: boolean; isPublished?: boolean; publishedAt?: string | null; exercises: RoutineExercise[]; createdAt: string };
 
 export async function routineRequest<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...(options?.headers || {}) } });
@@ -36,6 +36,7 @@ type RoutineDraft = Omit<Routine, "id" | "createdAt" | "active" | "exercises"> &
 
 function validateDraft(draft: RoutineDraft) {
   if (!draft.name.trim() || !draft.days.length || !draft.exercises.length) throw new Error("La rutina necesita nombre, días y al menos un ejercicio.");
+  if ((draft.notes ?? "").length > 2000) throw new Error("Las anotaciones no pueden superar los 2000 caracteres.");
   if (draft.exercises.some((exercise) => !exercise.name.trim() || !exercise.muscle.trim() || !Number.isInteger(exercise.sets) || exercise.sets < 1 || !Number.isInteger(exercise.reps) || exercise.reps < 1 || !Number.isFinite(exercise.weight) || exercise.weight < 0)) throw new Error("Revisá los valores de los ejercicios.");
 }
 
@@ -47,15 +48,16 @@ async function queueRoutine(id: string, url: string, method: "POST" | "PATCH" | 
 
 export async function createRoutineOfflineFirst(draft: RoutineDraft) {
   validateDraft(draft);
-  const routine: Routine = { ...draft, id: createClientId(), active: true, createdAt: new Date().toISOString(), exercises: draft.exercises.map((exercise) => ({ ...exercise, id: createClientId() })) };
+  const routine: Routine = { ...draft, notes: draft.notes?.trim() ?? "", id: createClientId(), active: true, createdAt: new Date().toISOString(), exercises: draft.exercises.map((exercise) => ({ ...exercise, id: createClientId() })) };
   await cacheRoutine(routine); await setRoutineSyncStatus(routine.id, "pending");
   try { const remote = await routineRequest<Routine>("/api/routines", { method: "POST", body: JSON.stringify(routine) }); await cacheRoutine(remote); return remote; }
   catch { await queueRoutine(routine.id, "/api/routines", "POST", routine); return routine; }
 }
 
-export async function updateRoutineOfflineFirst(id: string, patch: Partial<Pick<Routine, "name" | "type" | "days" | "active" | "isPublished" | "exercises">>) {
+export async function updateRoutineOfflineFirst(id: string, patch: Partial<Pick<Routine, "name" | "notes" | "type" | "days" | "active" | "isPublished" | "exercises">>) {
   const existing = await getCachedRoutine(id);
   if (!existing) throw new Error("La rutina todavía no está disponible en este dispositivo.");
+  if ((patch.notes ?? "").length > 2000) throw new Error("Las anotaciones no pueden superar los 2000 caracteres.");
   const local = { ...existing, ...patch };
   await cacheRoutine(local); await setRoutineSyncStatus(id, "pending");
   try { const remote = await routineRequest<Routine>(`/api/routines/${id}`, { method: "PATCH", body: JSON.stringify(patch) }); await cacheRoutine(remote); return remote; }

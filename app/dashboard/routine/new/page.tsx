@@ -47,6 +47,7 @@ export default function NewRoutinePage() {
   const [screen, setScreen] = useState<CreateScreen>("choice");
   const [builderStep, setBuilderStep] = useState<BuilderStep>("select");
   const [name, setName] = useState("Nueva rutina");
+  const [notes, setNotes] = useState("");
   const [selectedDays, setSelectedDays] = useState(["Lun"]);
   const [activeDay, setActiveDay] = useState("Lun");
   const [byDay, setByDay] = useState<Record<string, DraftExercise[]>>({ Lun: [] });
@@ -75,6 +76,7 @@ export default function NewRoutinePage() {
 
   const openCustomBuilder = () => {
     setName("Nueva rutina");
+    setNotes("");
     setSelectedDays(["Lun"]);
     setActiveDay("Lun");
     setByDay({ Lun: [] });
@@ -109,6 +111,7 @@ export default function NewRoutinePage() {
 
   const applyTemplate = (template: typeof templates[number]) => {
     setName(template.name);
+    setNotes("");
     setSelectedDays([...template.days]);
     setActiveDay(template.days[0]);
     setByDay(Object.fromEntries(template.days.map((day) => [day, (template.exercisesByDay[day as keyof typeof template.exercisesByDay] || []).map((catalogId) => exerciseOptions.find((option) => option.id === catalogId)).filter((option): option is ExerciseOption => Boolean(option)).map(makeExercise)])));
@@ -161,7 +164,7 @@ export default function NewRoutinePage() {
     })));
     setError("");
     try {
-      const routine = await createRoutineOfflineFirst({ name, type: "Personalizada", days: selectedDays, exercises: routineExercises });
+      const routine = await createRoutineOfflineFirst({ name, notes, type: "Personalizada", days: selectedDays, exercises: routineExercises });
       router.push(`/dashboard/routine/${routine.id}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo crear la rutina.");
@@ -188,6 +191,17 @@ export default function NewRoutinePage() {
             <Label text="Nombre de la rutina"><input className="input" value={name} maxLength={80} onChange={(event) => setName(event.target.value)} /></Label>
             <div className="flex rounded-xl bg-black/20 p-1 text-xs font-semibold"><button type="button" onClick={() => setBuilderStep("select")} className={`rounded-lg px-3 py-2 ${builderStep === "select" ? "bg-[#b7ff00] text-black" : "text-white/45"}`}>1. Ejercicios</button><button type="button" onClick={continueToTargets} className={`rounded-lg px-3 py-2 ${builderStep === "targets" ? "bg-[#b7ff00] text-black" : "text-white/45"}`}>2. Series y reps</button></div>
           </div>
+          <label className="mt-5 block">
+            <span className="mb-2 block text-xs font-medium text-white/55">Anotaciones e indicaciones</span>
+            <textarea
+              className="input min-h-28 resize-y"
+              value={notes}
+              maxLength={2000}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Manejo del peso, recordatorios o indicaciones para quien entrene con esta rutina…"
+            />
+            <span className="mt-1 block text-right text-[11px] text-white/30">{notes.length}/2000</span>
+          </label>
           <div className="mt-6"><p className="mb-2 text-xs font-medium text-white/55">Días que querés entrenar</p><div className="flex flex-wrap gap-2">{days.map((day) => <button key={day} type="button" onClick={() => toggleDay(day)} className={`rounded-xl px-3 py-2 text-xs font-semibold ${selectedDays.includes(day) ? "bg-[#b7ff00] text-black" : "border border-white/10 text-white/45"}`}>{day}</button>)}</div></div>
           <div role="tablist" aria-label="Día de entrenamiento" className="mt-5 flex gap-2 overflow-x-auto border-t border-white/[.07] pt-5 pb-1">{selectedDays.map((day) => <button key={day} type="button" role="tab" aria-selected={activeDay === day} onClick={() => selectDay(day)} className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold ${activeDay === day ? "bg-[#b7ff00] text-black" : "bg-white/[.05] text-white/55"}`}>{day} <span className="ml-1 opacity-60">{(byDay[day] ?? []).length}</span></button>)}</div>
 

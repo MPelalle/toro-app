@@ -28,6 +28,7 @@ export type LocalUser = SyncMetadata & {
 
 export type LocalRoutine = SyncMetadata & {
   name: string;
+  notes?: string;
   type: string;
   kind?: "PERSONAL" | "SHARED";
   canEdit?: boolean;

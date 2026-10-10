@@ -12,6 +12,7 @@ function serialize(plan: any, viewerId?: string) {
   return {
     ...plan,
     createdAt: plan.createdAt.toISOString(),
+    notes: plan.notes || "",
     canEdit: viewerId ? plan.userId === viewerId : undefined,
     days: Array.isArray(plan.days) ? plan.days : [],
     exercises: plan.exercises.map((exercise: any) => ({
@@ -138,6 +139,8 @@ export async function PATCH(
       : notFound();
   }
   const name = String(body.name || "").trim();
+  const notes =
+    body.notes === undefined ? plan.notes || "" : String(body.notes || "").trim();
   const type = String(body.type || "");
   const days: string[] = Array.isArray(body.days)
     ? body.days.map((day: unknown) => String(day))
@@ -145,6 +148,7 @@ export async function PATCH(
   if (
     !name ||
     name.length > 80 ||
+    notes.length > 2000 ||
     !["Weider", "Torso / Pierna", "Fullbody", "Personalizada"].includes(type) ||
     !days.length ||
     days.length > 7 ||
@@ -265,7 +269,7 @@ export async function PATCH(
       );
       return tx.routinePlan.update({
         where: { id },
-        data: { name, type, days, updatedById: user.id, ...publicationData },
+        data: { name, notes, type, days, updatedById: user.id, ...publicationData },
         include,
       });
     });
@@ -276,7 +280,7 @@ export async function PATCH(
   }
   const updated = await prisma.routinePlan.update({
     where: { id },
-    data: { name, type, days, updatedById: user.id, ...publicationData },
+    data: { name, notes, type, days, updatedById: user.id, ...publicationData },
     include,
   });
   revalidatePublicRoutines();

@@ -68,6 +68,7 @@ export default function EditRoutinePage() {
             name: routine.name,
             type: routine.type,
             days: routine.days,
+            notes: routine.notes ?? "",
             exercises: routine.exercises,
           }),
         });
@@ -79,6 +80,7 @@ export default function EditRoutinePage() {
           name: routine.name,
           type: routine.type,
           days: routine.days,
+          notes: routine.notes ?? "",
           isPublished: routine.isPublished,
           exercises: routine.exercises,
         });
@@ -263,6 +265,17 @@ export default function EditRoutinePage() {
               ))}
             </div>
           </div>
+          <label className="mt-5 block">
+            <span className="mb-2 block text-xs text-white/55">Anotaciones e indicaciones</span>
+            <textarea
+              className="input min-h-28 resize-y"
+              maxLength={2000}
+              value={routine.notes ?? ""}
+              onChange={(event) => updateRoutine({ notes: event.target.value })}
+              placeholder="Manejo del peso, recordatorios o indicaciones para quien entrene con esta rutina…"
+            />
+            <span className="mt-1 block text-right text-[11px] text-white/30">{(routine.notes ?? "").length}/2000</span>
+          </label>
           {!shared && (
             <fieldset className="mt-6 rounded-2xl border border-[#b7ff00]/15 bg-[#b7ff00]/[.045] p-4">
               <legend className="px-1 text-sm font-semibold">
