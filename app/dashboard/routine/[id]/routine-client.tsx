@@ -49,6 +49,7 @@ import {
 } from "@/lib/training-coach";
 import { ExerciseInsightActions } from "@/components/workout/ExerciseInsightActions";
 import { PlateCalculator } from "@/components/workout/PlateCalculator";
+import { RoutineNotes } from "@/components/routine/RoutineNotes";
 import type { ExerciseOption } from "@/lib/exercise-catalog";
 import {
   getActiveUserSyncMetadata,
@@ -902,16 +903,6 @@ export default function RoutineDetailClient({
             <WifiOff size={14} /> Rutina disponible desde tu copia offline.
           </p>
         )}
-        {routine.notes?.trim() && (
-          <section className="mt-5 rounded-2xl border border-[#b7ff00]/15 bg-[#b7ff00]/[.045] p-5">
-            <p className="text-[10px] font-bold uppercase tracking-[.18em] text-[#b7ff00]/75">
-              Anotaciones de la rutina
-            </p>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/75">
-              {routine.notes}
-            </p>
-          </section>
-        )}
         {error && (
           <p role="alert" className="mt-5 text-sm text-red-300">
             {error}
@@ -1100,6 +1091,7 @@ export default function RoutineDetailClient({
             )}
           </>
         )}
+        {routine.notes?.trim() && <RoutineNotes value={routine.notes} />}
       </div>
     </main>
   );

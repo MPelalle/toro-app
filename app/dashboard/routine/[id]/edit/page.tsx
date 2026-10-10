@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Save, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  LoaderCircle,
+  Plus,
+  Save,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   deleteRoutineOfflineFirst,
@@ -11,6 +18,7 @@ import {
   updateRoutineOfflineFirst,
 } from "@/lib/routines";
 import { ExerciseVideoModal } from "@/components/workout/ExerciseVideoModal";
+import { RoutineNotesEditor } from "@/components/routine/RoutineNotes";
 
 const daysOfWeek = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
@@ -19,12 +27,18 @@ export default function EditRoutinePage() {
   const router = useRouter();
   const [routine, setRoutine] = useState<Routine | null>(null);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     void getRoutineOfflineFirst(id)
       .then((result) => {
-        if (active) setRoutine(result.routine ?? null);
+        if (active) {
+          setRoutine(result.routine ?? null);
+          setExpandedDay(result.routine?.days[0] ?? null);
+        }
       })
       .catch((cause) => {
         if (active)
@@ -57,34 +71,41 @@ export default function EditRoutinePage() {
     );
 
   const save = async () => {
-    if (!routine) return;
+    if (!routine || saving) return;
+    setSaving(true);
     setError("");
     try {
-      if (routine.kind === "SHARED") {
-        const response = await fetch(`/api/routines/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+      const persist = async () => {
+        if (routine.kind === "SHARED") {
+          const response = await fetch(`/api/routines/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: routine.name,
+              type: routine.type,
+              days: routine.days,
+              notes: routine.notes ?? "",
+              exercises: routine.exercises,
+            }),
+          });
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok)
+            throw new Error(body.error || "No se pudieron guardar los cambios.");
+        } else {
+          await updateRoutineOfflineFirst(id, {
             name: routine.name,
             type: routine.type,
             days: routine.days,
             notes: routine.notes ?? "",
+            isPublished: routine.isPublished,
             exercises: routine.exercises,
-          }),
-        });
-        const body = await response.json().catch(() => ({}));
-        if (!response.ok)
-          throw new Error(body.error || "No se pudieron guardar los cambios.");
-      } else {
-        await updateRoutineOfflineFirst(id, {
-          name: routine.name,
-          type: routine.type,
-          days: routine.days,
-          notes: routine.notes ?? "",
-          isPublished: routine.isPublished,
-          exercises: routine.exercises,
-        });
-      }
+          });
+        }
+      };
+      await Promise.all([
+        persist(),
+        new Promise((resolve) => window.setTimeout(resolve, 450)),
+      ]);
       router.push(
         routine.kind === "SHARED"
           ? `/dashboard/community/routines/${id}`
@@ -96,17 +117,21 @@ export default function EditRoutinePage() {
           ? cause.message
           : "No se pudieron guardar los cambios.",
       );
+    } finally {
+      setSaving(false);
     }
   };
 
   const remove = async () => {
     if (
       !routine ||
+      removing ||
       !window.confirm(
         "¿Eliminar esta rutina? Esta acción no se puede deshacer.",
       )
     )
       return;
+    setRemoving(true);
     try {
       await deleteRoutineOfflineFirst(id);
       router.push("/dashboard/routine");
@@ -116,6 +141,8 @@ export default function EditRoutinePage() {
           ? cause.message
           : "No se pudo eliminar la rutina.",
       );
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -150,13 +177,24 @@ export default function EditRoutinePage() {
     );
 
   const shared = routine.kind === "SHARED";
-  const toggleDay = (day: string) =>
-    updateRoutine({
-      days: routine.days.includes(day)
-        ? routine.days.filter((item) => item !== day)
-        : [...routine.days, day],
-    });
-  const addExercise = () =>
+  const toggleDay = (day: string) => {
+    if (routine.days.includes(day)) {
+      const remainingDays = routine.days.filter((item) => item !== day);
+      if (!remainingDays.length) return;
+      updateRoutine({
+        days: remainingDays,
+        exercises: routine.exercises.map((exercise) =>
+          exercise.trainingDay === day
+            ? { ...exercise, trainingDay: remainingDays[0] }
+            : exercise,
+        ),
+      });
+      if (expandedDay === day) setExpandedDay(remainingDays[0]);
+      return;
+    }
+    updateRoutine({ days: [...routine.days, day] });
+  };
+  const addExercise = (day: string) =>
     updateRoutine({
       exercises: [
         ...routine.exercises,
@@ -171,7 +209,7 @@ export default function EditRoutinePage() {
           completed: null,
           actualReps: null,
           note: "",
-          trainingDay: routine.days[0] || "Lun",
+          trainingDay: day,
         },
       ],
     });
@@ -267,14 +305,10 @@ export default function EditRoutinePage() {
           </div>
           <label className="mt-5 block">
             <span className="mb-2 block text-xs text-white/55">Anotaciones e indicaciones</span>
-            <textarea
-              className="input min-h-28 resize-y"
-              maxLength={2000}
+            <RoutineNotesEditor
               value={routine.notes ?? ""}
-              onChange={(event) => updateRoutine({ notes: event.target.value })}
-              placeholder="Manejo del peso, recordatorios o indicaciones para quien entrene con esta rutina…"
+              onChange={(notes) => updateRoutine({ notes })}
             />
-            <span className="mt-1 block text-right text-[11px] text-white/30">{(routine.notes ?? "").length}/2000</span>
           </label>
           {!shared && (
             <fieldset className="mt-6 rounded-2xl border border-[#b7ff00]/15 bg-[#b7ff00]/[.045] p-4">
@@ -315,27 +349,87 @@ export default function EditRoutinePage() {
               </label>
             </fieldset>
           )}
+          {error && (
+            <p role="alert" className="mt-5 text-sm text-red-300">
+              {error}
+            </p>
+          )}
+          <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-white/[.07] pt-5">
+            {shared ? (
+              <p className="text-xs text-white/35">
+                El plan compartido se conserva para tu equipo.
+              </p>
+            ) : (
+              <button
+                type="button"
+                disabled={saving || removing}
+                onClick={() => void remove()}
+                className="flex items-center gap-2 rounded-xl px-3 py-3 text-sm text-red-300/75 hover:bg-red-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Trash2 size={16} /> {removing ? "Eliminando…" : "Eliminar rutina"}
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={saving || removing}
+              onClick={() => void save()}
+              className="flex items-center gap-2 rounded-xl bg-[#b7ff00] px-5 py-3 text-sm font-bold text-black disabled:cursor-wait disabled:opacity-70"
+            >
+              {saving ? (
+                <>
+                  <LoaderCircle size={16} className="animate-spin" />
+                  Guardando…
+                </>
+              ) : (
+                <>
+                  <Save size={16} /> Guardar cambios
+                </>
+              )}
+            </button>
+          </div>
           <div className="mt-7 border-t border-white/[.07] pt-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold">
-                  {shared ? "Estructura compartida" : "Ejercicios"}
+                  {shared ? "Estructura compartida" : "Ejercicios por día"}
                 </p>
                 <p className="mt-1 text-xs text-white/35">
-                  Definí ejercicios, series, repeticiones, carga y descanso
-                  objetivo.
+                  Abrí cada día para ordenar y editar sus ejercicios.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={addExercise}
-                className="inline-flex items-center gap-1 text-xs font-bold text-[#b7ff00]"
-              >
-                <Plus size={15} /> Ejercicio
-              </button>
             </div>
             <div className="mt-4 space-y-3">
-              {routine.exercises.map((exercise, index) => (
+              {routine.days.map((day) => {
+                const dayExercises = routine.exercises.flatMap((exercise, index) =>
+                  exercise.trainingDay === day ? [{ exercise, index }] : [],
+                );
+                return (
+                <div
+                  key={day}
+                  className="overflow-hidden rounded-2xl border border-white/[.08] bg-black/15"
+                >
+                  <button
+                    type="button"
+                    aria-expanded={expandedDay === day}
+                    onClick={() =>
+                      setExpandedDay((current) => current === day ? null : day)
+                    }
+                    className="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-4 text-left"
+                  >
+                    <span>
+                      <span className="text-sm font-semibold">{day}</span>
+                      <span className="ml-2 text-xs text-white/40">
+                        {dayExercises.length} ejercicio{dayExercises.length === 1 ? "" : "s"}
+                      </span>
+                    </span>
+                    <ChevronDown
+                      size={17}
+                      className={`shrink-0 text-white/45 transition-transform ${expandedDay === day ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {expandedDay === day && (
+                  <div className="space-y-3 border-t border-white/[.07] p-3">
+                  {dayExercises.map(({ exercise, index }) => (
                 <div
                   key={exercise.id}
                   className="rounded-2xl border border-white/[.07] bg-black/20 p-3"
@@ -462,34 +556,24 @@ export default function EditRoutinePage() {
                   </div>
                 </div>
               ))}
+                  {!dayExercises.length && (
+                    <p className="px-2 py-3 text-sm text-white/40">
+                      Todavía no hay ejercicios para este día.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => addExercise(day)}
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-2 text-xs font-bold text-[#b7ff00]"
+                  >
+                    <Plus size={15} /> Agregar ejercicio a {day}
+                  </button>
+                  </div>
+                  )}
+                </div>
+                );
+              })}
             </div>
-          </div>
-          {error && (
-            <p role="alert" className="mt-5 text-sm text-red-300">
-              {error}
-            </p>
-          )}
-          <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-white/[.07] pt-5">
-            {shared ? (
-              <p className="text-xs text-white/35">
-                El plan compartido se conserva para tu equipo.
-              </p>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void remove()}
-                className="flex items-center gap-2 rounded-xl px-3 py-3 text-sm text-red-300/75 hover:bg-red-400/10"
-              >
-                <Trash2 size={16} /> Eliminar rutina
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => void save()}
-              className="flex items-center gap-2 rounded-xl bg-[#b7ff00] px-5 py-3 text-sm font-bold text-black"
-            >
-              <Save size={16} /> Guardar cambios
-            </button>
           </div>
         </section>
       </div>

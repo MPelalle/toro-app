@@ -6,6 +6,7 @@ import { ArrowLeft, Check, ChevronLeft, Dumbbell, Images, LayoutTemplate, Search
 import { useMemo, useState } from "react";
 import { ExerciseThumbnail } from "@/components/workout/ExerciseThumbnail";
 import { ExerciseVideoModal } from "@/components/workout/ExerciseVideoModal";
+import { RoutineNotesEditor } from "@/components/routine/RoutineNotes";
 import { exerciseOptions, muscleGroups, type ExerciseOption } from "@/lib/exercise-catalog";
 import { createRoutineOfflineFirst } from "@/lib/routines";
 
@@ -193,14 +194,7 @@ export default function NewRoutinePage() {
           </div>
           <label className="mt-5 block">
             <span className="mb-2 block text-xs font-medium text-white/55">Anotaciones e indicaciones</span>
-            <textarea
-              className="input min-h-28 resize-y"
-              value={notes}
-              maxLength={2000}
-              onChange={(event) => setNotes(event.target.value)}
-              placeholder="Manejo del peso, recordatorios o indicaciones para quien entrene con esta rutina…"
-            />
-            <span className="mt-1 block text-right text-[11px] text-white/30">{notes.length}/2000</span>
+            <RoutineNotesEditor value={notes} onChange={setNotes} />
           </label>
           <div className="mt-6"><p className="mb-2 text-xs font-medium text-white/55">Días que querés entrenar</p><div className="flex flex-wrap gap-2">{days.map((day) => <button key={day} type="button" onClick={() => toggleDay(day)} className={`rounded-xl px-3 py-2 text-xs font-semibold ${selectedDays.includes(day) ? "bg-[#b7ff00] text-black" : "border border-white/10 text-white/45"}`}>{day}</button>)}</div></div>
           <div role="tablist" aria-label="Día de entrenamiento" className="mt-5 flex gap-2 overflow-x-auto border-t border-white/[.07] pt-5 pb-1">{selectedDays.map((day) => <button key={day} type="button" role="tab" aria-selected={activeDay === day} onClick={() => selectDay(day)} className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold ${activeDay === day ? "bg-[#b7ff00] text-black" : "bg-white/[.05] text-white/55"}`}>{day} <span className="ml-1 opacity-60">{(byDay[day] ?? []).length}</span></button>)}</div>
