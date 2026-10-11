@@ -44,7 +44,7 @@ export async function saveImmersiveDietCheckIn(userId: string, dietId: string, i
     const previous = await tx.dietWeeklyCheckIn.findFirst({ where: { dietId, userId }, orderBy: { weekStart: "desc" } });
     const logs = await tx.dietDailyLog.findMany({ where: { dietId, userId, date: { gte: weekStart, lte: dateAtNoonUTC(appDateKey()) } }, select: { completedMealIds: true } });
     const completedMeals = logs.reduce((total, log) => total + (Array.isArray(log.completedMealIds) ? log.completedMealIds.length : 0), 0);
-    const adherence = diet.meals.length ? completedMeals / (7 * diet.meals.length) : 0;
+    const adherence = diet.meals.length ? completedMeals / diet.meals.length : 0;
     const canAdjust = Boolean(previous && logs.length >= 5 && adherence >= 0.7);
     const adjustmentKcal = previous ? weeklyAdjustmentFor({ age: diet.age, goal: diet.goal, previousWeight: previous.weight, weight: input.weight, currentCalories: diet.calories, sex: diet.sex as "male" | "female", hasEnoughAdherence: canAdjust }) : 0;
 

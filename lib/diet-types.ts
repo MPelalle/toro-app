@@ -3,6 +3,7 @@ export type Sex = "male" | "female";
 
 export type DietMeal = {
   id: string;
+  dayOfWeek?: number;
   name: string;
   time: string;
   kcal: number;
@@ -27,10 +28,13 @@ export type Food = {
 export type WeightEntry = { id: string; date: string; weight: number; note?: string };
 export type DailyDietLog = { date: string; completedMeals: string[]; comment: string };
 export type WeeklyDietCheckIn = { id: string; weekStart: string; weight: number; feeling: string; energy: number; hunger: number; note?: string; adjustmentKcal: number };
+export type DietPantryItem = { id: string; name: string; quantity: number; unit: string };
+export type DietShoppingItem = { name: string; quantity: number; unit: string; checked: boolean };
 
 export type Diet = {
   id: string;
   name: string;
+  notes?: string;
   sex: Sex;
   age: number;
   weight: number;

@@ -6,7 +6,7 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "No autorizado" }, { status: 401 });
   const diets = await listSharedDiets(user.id);
-  return Response.json(diets.map((diet) => ({ id: diet.id, name: diet.name, calories: diet.calories, goal: diet.goal, mealCount: diet.meals.length, updatedAt: diet.updatedAt.toISOString(), members: diet.members.map((member) => ({ id: member.userId, name: member.user.name || member.user.nickname || "Atleta", nickname: member.user.nickname, avatarUrl: member.user.avatarUrl })) })), { headers: { "Cache-Control": "no-store" } });
+  return Response.json(diets.map((diet) => ({ id: diet.id, name: diet.name, calories: diet.calories, goal: diet.goal, mealCount: diet.mealsPerDay, updatedAt: diet.updatedAt.toISOString(), members: diet.members.map((member) => ({ id: member.userId, name: member.user.name || member.user.nickname || "Atleta", nickname: member.user.nickname, avatarUrl: member.user.avatarUrl })) })), { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request) {

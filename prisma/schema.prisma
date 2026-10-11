@@ -150,6 +150,7 @@ model User {
   dietWeightEntries DietWeightEntry[]
   dietDailyLogs DietDailyLog[]
   dietWeeklyCheckIns DietWeeklyCheckIn[]
+  dietPantryItems DietPantryItem[]
   bodyMeasurements BodyMeasurement[]
   progressPhotos ProgressPhoto[]
   communityStatuses CommunityStatus[]
@@ -204,6 +205,7 @@ model DietPlan {
   activity    Float
   activityLabel String @map("activity_label")
   goal        String
+  notes       String?
   mealsPerDay Int      @map("meals_per_day")
   calories    Int
   tdee        Int
@@ -220,6 +222,7 @@ model DietPlan {
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   updatedBy     User?          @relation("DietLastUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   meals         DietMeal[]
+  pantryItems   DietPantryItem[]
   weightEntries DietWeightEntry[]
   dailyLogs     DietDailyLog[]
   weeklyCheckIns DietWeeklyCheckIn[]
@@ -234,6 +237,7 @@ model DietPlan {
 model DietMeal {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   dietId    String   @map("diet_id") @db.Uuid
+  dayOfWeek Int      @default(0) @map("day_of_week")
   position  Int
   name      String
   time      String
@@ -246,8 +250,28 @@ model DietMeal {
 
   diet DietPlan @relation(fields: [dietId], references: [id], onDelete: Cascade)
 
-  @@unique([dietId, position])
+  @@unique([dietId, dayOfWeek, position])
   @@map("diet_meals")
+}
+
+model DietPantryItem {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dietId    String   @map("diet_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String
+  quantity  Float    @default(0)
+  unit      String   @default("")
+  isShopping Boolean @default(false) @map("is_shopping")
+  checked   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  diet DietPlan @relation(fields: [dietId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([dietId, userId, name, unit, isShopping])
+  @@index([userId, dietId, isShopping])
+  @@map("diet_pantry_items")
 }
 
 model DietWeightEntry {

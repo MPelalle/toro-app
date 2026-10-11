@@ -1242,7 +1242,7 @@ export async function createSharedDiet(
   return prisma.$transaction(async (tx) => {
     const source = await tx.dietPlan.findFirst({
       where: { id: sourceDietId, userId, kind: "PERSONAL" },
-      include: { meals: { orderBy: { position: "asc" } } },
+      include: { meals: { orderBy: [{ dayOfWeek: "asc" }, { position: "asc" }] } },
     });
     if (!source)
       throw new Error("Elegí una dieta personal válida para usar como base.");
@@ -1262,6 +1262,7 @@ export async function createSharedDiet(
         activity: source.activity,
         activityLabel: source.activityLabel,
         goal: source.goal,
+        notes: source.notes,
         mealsPerDay: source.mealsPerDay,
         calories: source.calories,
         tdee: source.tdee,
@@ -1271,6 +1272,7 @@ export async function createSharedDiet(
         active: true,
         meals: {
           create: source.meals.map((meal) => ({
+            dayOfWeek: meal.dayOfWeek,
             position: meal.position,
             name: meal.name,
             time: meal.time,

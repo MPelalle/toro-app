@@ -108,9 +108,11 @@ async function getDashboardDiet(userId: string, today: Date): Promise<DashboardD
       name: true,
       active: true,
       meals: {
+        where: { dayOfWeek: (today.getUTCDay() + 6) % 7 },
         orderBy: { position: "asc" },
         select: {
           id: true,
+          dayOfWeek: true,
           name: true,
           time: true,
           kcal: true,
