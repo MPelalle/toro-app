@@ -65,6 +65,149 @@ self.addEventListener("message", (event) => {
   }
 });
 
+function getLiveWorkoutTarget(data) {
+  if (data?.type !== "TORO_LIVE_WORKOUT" || typeof data.sessionId !== "string" || data.sessionId.length > 100 || typeof data.url !== "string") return null;
+  try {
+    const url = new URL(data.url, self.location.origin);
+    if (url.origin !== self.location.origin || !/^\/dashboard\/routine\/(?:free|[A-Za-z0-9-]{8,100})$/.test(url.pathname)) return null;
+    return { url, sessionId: data.sessionId };
+  } catch {
+    return null;
+  }
+}
+
+async function focusWorkoutWindow(url) {
+  const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+  const exact = windows.find((client) => {
+    try {
+      return new URL(client.url).origin === self.location.origin && new URL(client.url).pathname === url.pathname;
+    } catch {
+      return false;
+    }
+  });
+  if (exact) return exact.focus();
+
+  const existing = windows.find((client) => {
+    try {
+      return new URL(client.url).origin === self.location.origin;
+    } catch {
+      return false;
+    }
+  });
+  if (existing) {
+    await existing.navigate(url.href);
+    return existing.focus();
+  }
+  return self.clients.openWindow(url.href);
+}
+
+function requestWorkoutAction(client, sessionId, action, exerciseId, setId, restState) {
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    const timeout = setTimeout(() => {
+      channel.port1.close();
+      resolve(null);
+    }, 8_000);
+    channel.port1.onmessage = (event) => {
+      clearTimeout(timeout);
+      channel.port1.close();
+      resolve(event.data);
+    };
+    client.postMessage(
+      {
+        type: "TORO_LIVE_WORKOUT_ACTION",
+        sessionId,
+        action,
+        exerciseId,
+        setId,
+        restState,
+        expiresAt: Date.now() + 8_000,
+      },
+      [channel.port2],
+    );
+  });
+}
+
+self.addEventListener("notificationclick", (event) => {
+  const notification = event.notification;
+  const target = getLiveWorkoutTarget(notification.data);
+  if (!target) {
+    notification.close();
+    return;
+  }
+
+  const action = event.action || "open_workout";
+  event.waitUntil((async () => {
+    if (action === "open_workout") {
+      notification.close();
+      await focusWorkoutWindow(target.url);
+      return;
+    }
+
+    if (action !== "complete_set" && action !== "toggle_rest") {
+      notification.close();
+      await focusWorkoutWindow(target.url);
+      return;
+    }
+    if (action === "complete_set" && (typeof notification.data.exerciseId !== "string" || typeof notification.data.setId !== "string")) {
+      notification.close();
+      await focusWorkoutWindow(target.url);
+      return;
+    }
+
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const workoutClient = windows.find((client) => {
+      try {
+        return new URL(client.url).origin === self.location.origin && new URL(client.url).pathname === target.url.pathname;
+      } catch {
+        return false;
+      }
+    });
+    if (!workoutClient) {
+      notification.close();
+      await focusWorkoutWindow(target.url);
+      await self.registration.showNotification("TORO · Abrí tu entrenamiento", {
+        body: "La pestaña no estaba activa. Revisá la sesión y volvé a intentar la acción.",
+        tag: "toro-live-workout",
+        renotify: false,
+        icon: "/icons/toro-icon-1024.png",
+        data: { type: "TORO_LIVE_WORKOUT", sessionId: target.sessionId, url: target.url.href },
+        actions: [{ action: "open_workout", title: "Abrir TORO" }],
+      });
+      return;
+    }
+
+    await workoutClient.focus();
+    let result = null;
+    try {
+      result = await requestWorkoutAction(
+        workoutClient,
+        target.sessionId,
+        action,
+        notification.data.exerciseId,
+        notification.data.setId,
+        notification.data.restState,
+      );
+    } catch {
+      result = null;
+    }
+
+    if (result?.status === "saved") {
+      return;
+    }
+
+    const body = result?.message || "No se confirmó ningún cambio. Revisá la sesión antes de volver a intentar.";
+    await self.registration.showNotification("TORO · Acción no confirmada", {
+      body,
+      tag: "toro-live-workout",
+      renotify: false,
+      icon: "/icons/toro-icon-1024.png",
+      data: { type: "TORO_LIVE_WORKOUT", sessionId: target.sessionId, url: target.url.href },
+      actions: [{ action: "open_workout", title: "Abrir TORO" }],
+    });
+  })());
+});
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);

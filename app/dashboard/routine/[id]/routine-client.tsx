@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  Bell,
+  BellOff,
   Check,
   ChevronDown,
   Dumbbell,
@@ -20,12 +22,13 @@ import {
   Trophy,
   WifiOff,
 } from "lucide-react";
-import { type ChangeEvent, useEffect, useState } from "react";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import {
   createClientId,
   createFreeWorkoutSession,
   createWorkoutSession,
   getActiveWorkoutSession,
+  getWorkoutSession,
   getRecentWorkoutSessions,
   isOfflineUserReady,
   OfflineWorkoutSession,
@@ -56,6 +59,18 @@ import {
   getActiveUserSyncMetadata,
   setActiveUserSyncMetadata,
 } from "@/lib/offline/repositories/metadata";
+import {
+  formatWorkoutRest,
+  getCurrentWorkoutSet,
+  getLiveWorkoutActions,
+  getLiveWorkoutNotificationContent,
+  getWorkoutRoute,
+  isCurrentWorkoutSet,
+  isLiveWorkoutAction,
+  LIVE_WORKOUT_NOTIFICATION_TAG,
+  LIVE_WORKOUT_PREFERENCE_KEY,
+  type LiveWorkoutAction,
+} from "@/lib/workout-live";
 
 const ExercisePicker = dynamic(() => import("./exercise-picker"), { ssr: false });
 const ShareWorkoutButton = dynamic(
@@ -93,6 +108,11 @@ type WorkoutStats = {
     history: Array<{ date: string; volume: number }>;
   }>;
   muscles: Array<{ name: string; sets: number }>;
+};
+type LiveNotificationOptions = NotificationOptions & {
+  actions?: Array<{ action: string; title: string; icon?: string }>;
+  badge?: string;
+  renotify?: boolean;
 };
 
 const setKindLabels: Record<SetKind, string> = {
@@ -160,7 +180,27 @@ export default function RoutineDetailClient({
     null,
   );
   const [restUntil, setRestUntil] = useState<number | null>(null);
+  const [restPausedRemaining, setRestPausedRemaining] = useState<number | null>(null);
   const [restDuration, setRestDuration] = useState(90);
+  const [notificationPermission, setNotificationPermission] = useState<
+    NotificationPermission | "unsupported" | "insecure"
+  >("default");
+  const [liveNotificationsEnabled, setLiveNotificationsEnabled] = useState(false);
+  const [notificationPreferenceReady, setNotificationPreferenceReady] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState("");
+  const notificationActionLocks = useRef(new Set<string>());
+  const notificationActionHandler = useRef<
+    (
+      sessionId: string,
+      action: LiveWorkoutAction,
+      exerciseId?: string,
+      setId?: string,
+      expectedRestState?: "running" | "paused" | null,
+      expiresAt?: number,
+    ) => Promise<{ status: "saved" | "rejected"; message?: string }>
+  >(async () => ({ status: "rejected", message: "La sesión todavía no está disponible." }));
+  const notificationSignature = useRef("");
+  const lastDocumentTitle = useRef<string | null>(null);
   const [stats, setStats] = useState<WorkoutStats | null>(null);
   const [statsRefresh, setStatsRefresh] = useState(0);
   const [postWorkoutOpen, setPostWorkoutOpen] = useState(false);
@@ -255,14 +295,33 @@ export default function RoutineDetailClient({
       if ((event as CustomEvent<{ status?: string }>).detail?.status === "FINISHED") return;
       void reloadActiveSession();
     };
+    const refreshActiveSessionOnResume = async () => {
+      if (!(await identityReady()) || !mounted) return;
+      try {
+        const activeSession = await getActiveWorkoutSession(
+          isFreeWorkout ? null : id,
+        );
+        if (mounted && activeSession) setSession(activeSession);
+      } catch {
+        // El último estado local de la pestaña sigue disponible si falla la lectura.
+      }
+    };
+    const onResume = () => {
+      if (document.visibilityState === "visible")
+        void refreshActiveSessionOnResume();
+    };
     void reloadRoutine();
     void reloadActiveSession();
     window.addEventListener("toro-offline-readiness", onOfflineReadiness);
     window.addEventListener("toro-workout-session-change", onWorkoutSessionChange);
+    window.addEventListener("focus", onResume);
+    document.addEventListener("visibilitychange", onResume);
     return () => {
       mounted = false;
       window.removeEventListener("toro-offline-readiness", onOfflineReadiness);
       window.removeEventListener("toro-workout-session-change", onWorkoutSessionChange);
+      window.removeEventListener("focus", onResume);
+      document.removeEventListener("visibilitychange", onResume);
     };
   }, [id, initialRoutine, isFreeWorkout]);
 
@@ -337,15 +396,37 @@ export default function RoutineDetailClient({
   useEffect(() => {
     if (!restStorageKey) return;
     let active = true;
-    void getActiveUserSyncMetadata(restStorageKey)
+    const reloadRest = () => void getActiveUserSyncMetadata(restStorageKey)
       .then((record) => {
-        const endsAt = record ? Number(record.value) : 0;
-        if (active && Number.isFinite(endsAt) && endsAt > Date.now())
-          setRestUntil(endsAt);
+        if (!active) return;
+        if (!record) {
+          setRestUntil(null);
+          setRestPausedRemaining(null);
+          return;
+        }
+        if (record.value.startsWith("paused:")) {
+          const remaining = Number(record.value.slice("paused:".length));
+          setRestUntil(null);
+          setRestPausedRemaining(Number.isFinite(remaining) && remaining > 0 ? remaining : null);
+          return;
+        }
+        const endsAt = Number(record.value);
+        setRestUntil(Number.isFinite(endsAt) && endsAt > Date.now() ? endsAt : null);
+        setRestPausedRemaining(null);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) setError("No pudimos recuperar el temporizador de descanso guardado.");
+      });
+    const onResume = () => {
+      if (document.visibilityState === "visible") reloadRest();
+    };
+    reloadRest();
+    window.addEventListener("focus", onResume);
+    document.addEventListener("visibilitychange", onResume);
     return () => {
       active = false;
+      window.removeEventListener("focus", onResume);
+      document.removeEventListener("visibilitychange", onResume);
     };
   }, [restStorageKey]);
   useEffect(() => {
@@ -353,7 +434,10 @@ export default function RoutineDetailClient({
     const wait = Math.max(0, restUntil - Date.now());
     const timer = window.setTimeout(() => {
       setRestUntil(null);
-      void setActiveUserSyncMetadata(restStorageKey, "0");
+      setRestPausedRemaining(null);
+      void setActiveUserSyncMetadata(restStorageKey, "0").catch(() =>
+        setError("El descanso terminó, pero no pudimos actualizar su estado guardado."),
+      );
       if (typeof navigator !== "undefined" && "vibrate" in navigator)
         navigator.vibrate?.([80, 70, 120]);
     }, wait + 20);
@@ -365,15 +449,48 @@ export default function RoutineDetailClient({
     void syncPendingSessions();
     return saved;
   };
-  const startRest = async (seconds = restDuration) => {
-    const endsAt = Date.now() + Math.max(15, Math.min(600, seconds)) * 1_000;
-    setRestUntil(endsAt);
+  const startRest = async (seconds = restDuration, resumeRemaining = false) => {
+    if (!session || session.status !== "IN_PROGRESS") return;
+    const minimum = resumeRemaining ? 1 : 15;
+    const endsAt = Date.now() + Math.max(minimum, Math.min(600, seconds)) * 1_000;
     if (restStorageKey)
       await setActiveUserSyncMetadata(restStorageKey, String(endsAt));
+    setRestPausedRemaining(null);
+    setRestUntil(endsAt);
   };
-  const cancelRest = () => {
+  const cancelRest = async () => {
+    if (restStorageKey) await setActiveUserSyncMetadata(restStorageKey, "0");
     setRestUntil(null);
-    if (restStorageKey) void setActiveUserSyncMetadata(restStorageKey, "0");
+    setRestPausedRemaining(null);
+  };
+  const toggleRest = async (storedValue?: string) => {
+    if (!session || session.status !== "IN_PROGRESS") return;
+    let runningUntil = restUntil;
+    let pausedRemaining = restPausedRemaining;
+    if (storedValue !== undefined) {
+      if (storedValue.startsWith("paused:")) {
+        runningUntil = null;
+        const parsed = Number(storedValue.slice("paused:".length));
+        pausedRemaining = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+      } else {
+        const parsed = Number(storedValue);
+        runningUntil = Number.isFinite(parsed) && parsed > Date.now() ? parsed : null;
+        pausedRemaining = null;
+      }
+    }
+    if (runningUntil && runningUntil > Date.now()) {
+      const remaining = Math.max(1_000, runningUntil - Date.now());
+      if (restStorageKey)
+        await setActiveUserSyncMetadata(restStorageKey, `paused:${remaining}`);
+      setRestUntil(null);
+      setRestPausedRemaining(remaining);
+      return;
+    }
+    if (pausedRemaining) {
+      await startRest(Math.max(1, Math.ceil(pausedRemaining / 1_000)), true);
+      return;
+    }
+    await startRest();
   };
   const start = async () => {
     if (!routine) return;
@@ -413,15 +530,20 @@ export default function RoutineDetailClient({
     exerciseId: string,
     setId: string,
     patch: SetPatch,
-  ) => {
-    if (!session) return;
+    baseSession: OfflineWorkoutSession | null = session,
+  ): Promise<OfflineWorkoutSession | null> => {
+    if (!baseSession || baseSession.status !== "IN_PROGRESS") return null;
     if (!isValidSetPatch(patch)) {
       setError("Revisá el valor de la serie antes de guardarlo.");
-      return;
+      return null;
     }
+    const targetSet = baseSession.exercises
+      .find((exercise) => exercise.id === exerciseId)
+      ?.sets.find((set) => set.id === setId);
+    if (!targetSet || (patch.completed === true && targetSet.completed)) return null;
     const next = {
-      ...session,
-      exercises: session.exercises.map((exercise) =>
+      ...baseSession,
+      exercises: baseSession.exercises.map((exercise) =>
         exercise.id !== exerciseId
           ? exercise
           : {
@@ -433,16 +555,18 @@ export default function RoutineDetailClient({
       ),
     };
     try {
-      await persist(next);
+      const saved = await persist(next);
       if (patch.completed !== undefined)
         window.dispatchEvent(new Event("toro-dashboard-stats-change"));
       if (patch.completed === true)
         void startRest(
-          session.exercises.find((exercise) => exercise.id === exerciseId)
+          baseSession.exercises.find((exercise) => exercise.id === exerciseId)
             ?.restSeconds ?? restDuration,
-        );
+        ).catch(() => setError("La serie se guardó, pero no pudimos iniciar el descanso."));
+      return saved;
     } catch {
       setError("El cambio no pudo guardarse localmente.");
+      return null;
     }
   };
   const addSet = async (exerciseId: string) => {
@@ -730,7 +854,9 @@ export default function RoutineDetailClient({
         [saved, ...current.filter((item) => item.id !== saved.id)].slice(0, 24),
       );
       setWorkoutInProgress(false);
-      cancelRest();
+      void cancelRest().catch(() =>
+        setError("El entrenamiento terminó, pero no pudimos limpiar el descanso guardado."),
+      );
       setStatsRefresh((current) => current + 1);
       window.dispatchEvent(new Event("toro-dashboard-stats-change"));
       setPostWorkoutOpen(true);
@@ -822,6 +948,319 @@ export default function RoutineDetailClient({
       );
     }
   };
+
+  const enableLiveNotifications = async () => {
+    if (!window.isSecureContext) {
+      setNotificationPermission("insecure");
+      setNotificationMessage("Las notificaciones requieren HTTPS (localhost está permitido para desarrollo).");
+      return;
+    }
+    if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+      setNotificationPermission("unsupported");
+      setNotificationMessage("Este navegador no admite notificaciones de entrenamiento.");
+      return;
+    }
+    try {
+      const permission = Notification.permission === "granted"
+        ? "granted"
+        : await Notification.requestPermission();
+      setNotificationPermission(permission);
+      if (permission !== "granted") {
+        setNotificationMessage(permission === "denied"
+          ? "Chrome bloqueó las notificaciones. Permitilas desde el control de sitio junto a la dirección y volvé a TORO."
+          : "No se activaron las notificaciones. Podés volver a intentarlo desde esta sesión.");
+        return;
+      }
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (!registration?.active)
+        throw new Error("No hay un Service Worker activo para mostrar notificaciones.");
+      localStorage.setItem(LIVE_WORKOUT_PREFERENCE_KEY, "1");
+      setNotificationMessage("");
+      setLiveNotificationsEnabled(true);
+    } catch {
+      setNotificationMessage("No pudimos preparar las notificaciones. El entrenamiento sigue funcionando normalmente.");
+    }
+  };
+
+  const disableLiveNotifications = async () => {
+    try {
+      localStorage.setItem(LIVE_WORKOUT_PREFERENCE_KEY, "0");
+      setLiveNotificationsEnabled(false);
+      if ("serviceWorker" in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          const notifications = await registration.getNotifications({
+            tag: LIVE_WORKOUT_NOTIFICATION_TAG,
+          });
+          notifications.forEach((notification) => notification.close());
+        }
+      }
+      setNotificationMessage("Notificaciones de entrenamiento desactivadas en este navegador.");
+    } catch {
+      setNotificationMessage("No pudimos cerrar la notificación actual. Podés desactivarla desde Chrome.");
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPreferenceChange = (event: StorageEvent) => {
+      if (event.key !== LIVE_WORKOUT_PREFERENCE_KEY) return;
+      setLiveNotificationsEnabled(
+        event.newValue === "1" &&
+          "Notification" in window &&
+          Notification.permission === "granted",
+      );
+    };
+    window.addEventListener("storage", onPreferenceChange);
+    const timer = window.setTimeout(() => {
+      if (!window.isSecureContext) {
+        setNotificationPermission("insecure");
+        setNotificationPreferenceReady(true);
+        return;
+      }
+      if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+        setNotificationPermission("unsupported");
+        setNotificationPreferenceReady(true);
+        return;
+      }
+      const permission = Notification.permission;
+      setNotificationPermission(permission);
+      try {
+        setLiveNotificationsEnabled(
+          localStorage.getItem(LIVE_WORKOUT_PREFERENCE_KEY) === "1" &&
+            permission === "granted",
+        );
+      } catch {
+        setLiveNotificationsEnabled(false);
+        setNotificationMessage("No pudimos leer la preferencia de notificaciones de este navegador.");
+      }
+      setNotificationPreferenceReady(true);
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("storage", onPreferenceChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    notificationActionHandler.current = async (sessionId, action, exerciseId, setId, expectedRestState, expiresAt) => {
+      if (action === "open_workout") return { status: "rejected" };
+      if (!Number.isFinite(expiresAt) || (expiresAt ?? 0) <= Date.now())
+        return { status: "rejected", message: "La acción expiró mientras TORO estaba suspendido. Abrí la sesión para actualizarla." };
+      const lockKey = sessionId;
+      if (notificationActionLocks.current.has(lockKey))
+        return { status: "rejected", message: "Ya estamos procesando esa acción." };
+      notificationActionLocks.current.add(lockKey);
+      try {
+        if (session?.id !== sessionId || (session.routineId ?? "free") !== id)
+          return { status: "rejected", message: "Esta pestaña no tiene abierta esa sesión." };
+        const stored = await getWorkoutSession(sessionId);
+        if (!stored || stored.status !== "IN_PROGRESS")
+          return { status: "rejected", message: "La sesión ya terminó o dejó de estar disponible." };
+        const active = await getActiveWorkoutSession(stored.routineId);
+        if (active?.id !== sessionId)
+          return { status: "rejected", message: "La sesión activa cambió. Abrí TORO para revisar el estado actual." };
+        setSession(stored);
+
+        if (action === "complete_set") {
+          if (!isCurrentWorkoutSet(stored, exerciseId, setId))
+            return { status: "rejected", message: "La serie de esa notificación ya cambió. Revisá la serie actual en TORO." };
+          const current = getCurrentWorkoutSet(stored);
+          if (!current)
+            return { status: "rejected", message: "No hay una serie pendiente para completar." };
+          const saved = await updateSet(
+            current.exercise.id,
+            current.set.id,
+            { completed: true },
+            stored,
+          );
+          return saved
+            ? { status: "saved" }
+            : { status: "rejected", message: "No se confirmó el guardado de la serie." };
+        }
+
+        const restRecord = await getActiveUserSyncMetadata(`workout-rest:${sessionId}`);
+        const storedRestState = restRecord?.value.startsWith("paused:")
+          ? Number(restRecord.value.slice("paused:".length)) > 0
+            ? "paused"
+            : null
+          : Number(restRecord?.value) > Date.now()
+            ? "running"
+            : null;
+        if (storedRestState !== expectedRestState)
+          return { status: "rejected", message: "El descanso cambió desde esa notificación. Revisá su estado actual en TORO." };
+        await toggleRest(restRecord?.value ?? "0");
+        return { status: "saved" };
+      } catch {
+        return { status: "rejected", message: "No pudimos guardar el cambio. Revisá TORO antes de volver a intentarlo." };
+      } finally {
+        notificationActionLocks.current.delete(lockKey);
+      }
+    };
+  });
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const onServiceWorkerMessage = (event: MessageEvent) => {
+      const data = event.data as {
+        type?: unknown;
+        sessionId?: unknown;
+        action?: unknown;
+        exerciseId?: unknown;
+        setId?: unknown;
+        restState?: unknown;
+        expiresAt?: unknown;
+      };
+      const source = event.source;
+      const expectedWorkerUrl = new URL("/sw.js", window.location.origin).href;
+      if (
+        !(source instanceof ServiceWorker) ||
+        source.scriptURL !== expectedWorkerUrl ||
+        data?.type !== "TORO_LIVE_WORKOUT_ACTION" ||
+        typeof data.sessionId !== "string" ||
+        data.sessionId.length > 100 ||
+        !isLiveWorkoutAction(data.action) ||
+        data.action === "open_workout" ||
+        (data.restState !== null && data.restState !== "running" && data.restState !== "paused") ||
+        typeof data.expiresAt !== "number" ||
+        !Number.isFinite(data.expiresAt) ||
+        !event.ports[0]
+      )
+        return;
+      const reply = event.ports[0];
+      if (
+        data.action === "complete_set" &&
+        (typeof data.exerciseId !== "string" || typeof data.setId !== "string")
+      ) {
+        reply.postMessage({
+          status: "rejected",
+          message: "La notificación no identifica una serie válida.",
+        });
+        return;
+      }
+      void notificationActionHandler.current(
+        data.sessionId,
+        data.action,
+        typeof data.exerciseId === "string" ? data.exerciseId : undefined,
+        typeof data.setId === "string" ? data.setId : undefined,
+        data.restState,
+        data.expiresAt,
+      )
+        .then((result) => reply.postMessage(result))
+        .catch(() => reply.postMessage({
+          status: "rejected",
+          message: "No se confirmó el cambio. Abrí TORO para comprobar la sesión.",
+        }));
+    };
+    navigator.serviceWorker.addEventListener("message", onServiceWorkerMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onServiceWorkerMessage);
+  }, []);
+
+  useEffect(() => {
+    if (!session || !notificationPreferenceReady) return;
+    if (!liveNotificationsEnabled || notificationPermission !== "granted") {
+      notificationSignature.current = "";
+      if ("serviceWorker" in navigator) {
+        void navigator.serviceWorker.getRegistration()
+          .then((registration) => registration?.getNotifications({ tag: LIVE_WORKOUT_NOTIFICATION_TAG }) ?? [])
+          .then((notifications) => notifications.forEach((notification) => notification.close()))
+          .catch(() => undefined);
+      }
+      return;
+    }
+    const restState = restUntil && restUntil > Date.now()
+      ? "running"
+      : restPausedRemaining
+        ? "paused"
+        : null;
+    const content = getLiveWorkoutNotificationContent(
+      session,
+      restUntil,
+      restPausedRemaining,
+    );
+    const actions = getLiveWorkoutActions(
+      session,
+      restState,
+      typeof (Notification as typeof Notification & { maxActions?: number }).maxActions === "number"
+        ? (Notification as typeof Notification & { maxActions?: number }).maxActions
+        : undefined,
+    );
+    const data = {
+      type: "TORO_LIVE_WORKOUT",
+      sessionId: session.id,
+      url: getWorkoutRoute(session),
+      exerciseId: getCurrentWorkoutSet(session)?.exercise.id,
+      setId: getCurrentWorkoutSet(session)?.set.id,
+      restState,
+    };
+    const signature = JSON.stringify([content.title, content.body, actions, data]);
+    if (signature === notificationSignature.current) return;
+    notificationSignature.current = signature;
+    const options: LiveNotificationOptions = {
+      body: content.body,
+      tag: LIVE_WORKOUT_NOTIFICATION_TAG,
+      renotify: false,
+      icon: "/icons/toro-icon-1024.png",
+      badge: "/icons/toro-icon-1024.png",
+      data,
+      actions,
+    };
+    void navigator.serviceWorker.getRegistration()
+      .then((registration) => {
+        if (!registration?.active) throw new Error("El Service Worker no está activo.");
+        return registration.showNotification(content.title, options as NotificationOptions);
+      })
+      .then(() => setNotificationMessage(""))
+      .catch(() => {
+        notificationSignature.current = "";
+        setNotificationMessage("Chrome no pudo mostrar la notificación. La sesión sigue guardada normalmente.");
+      });
+  }, [
+    liveNotificationsEnabled,
+    notificationPermission,
+    notificationPreferenceReady,
+    restPausedRemaining,
+    restUntil,
+    session,
+  ]);
+
+  useEffect(() => {
+    if (!session) return;
+    const originalTitle = document.title;
+    let timeout: number | undefined;
+    const updateTitle = () => {
+      const restState = restUntil && restUntil > Date.now()
+        ? "running"
+        : restPausedRemaining
+          ? "paused"
+          : null;
+      const content = getLiveWorkoutNotificationContent(session, restUntil, restPausedRemaining);
+      const nextTitle = session.status === "FINISHED"
+        ? "TORO · Entrenamiento finalizado"
+        : restState
+          ? `TORO · ${restState === "paused" ? "Descanso pausado" : "Descanso"} ${formatWorkoutRest(restState === "paused" ? (restPausedRemaining ?? 0) / 1_000 : ((restUntil ?? Date.now()) - Date.now()) / 1_000)}`
+          : content.current
+            ? `TORO · Serie ${content.current.set.setNumber}/${content.current.exercise.sets.length} · ${content.current.exercise.name}`
+            : "TORO · Entrenamiento en progreso";
+      if (document.title !== nextTitle) document.title = nextTitle;
+      lastDocumentTitle.current = nextTitle;
+      if (restState === "running") {
+        if (timeout !== undefined) window.clearTimeout(timeout);
+        timeout = window.setTimeout(updateTitle, 15_000);
+      }
+    };
+    updateTitle();
+    window.addEventListener("focus", updateTitle);
+    document.addEventListener("visibilitychange", updateTitle);
+    return () => {
+      if (timeout !== undefined) window.clearTimeout(timeout);
+      window.removeEventListener("focus", updateTitle);
+      document.removeEventListener("visibilitychange", updateTitle);
+      if (lastDocumentTitle.current && document.title === lastDocumentTitle.current)
+        document.title = originalTitle;
+      lastDocumentTitle.current = null;
+    };
+  }, [restPausedRemaining, restUntil, session]);
 
   if (loading)
     return (
@@ -928,6 +1367,7 @@ export default function RoutineDetailClient({
               startedAt={session.startedAt}
               finishedAt={session.finishedAt}
               restUntil={restUntil}
+              restPausedRemaining={restPausedRemaining}
             />
             <p
               aria-live="polite"
@@ -935,6 +1375,13 @@ export default function RoutineDetailClient({
             >
               {syncCopy(session)}
             </p>
+            <LiveWorkoutNotificationSettings
+              enabled={liveNotificationsEnabled}
+              permission={notificationPermission}
+              message={notificationMessage}
+              onEnable={() => void enableLiveNotifications()}
+              onDisable={() => void disableLiveNotifications()}
+            />
             {session.status === "FINISHED" && sessionFeedback && (
               <WorkoutRecap feedback={sessionFeedback} />
             )}
@@ -968,16 +1415,21 @@ export default function RoutineDetailClient({
                     </select>
                     <button
                       type="button"
-                      onClick={() => void startRest()}
+                      onClick={() => void toggleRest().catch(() =>
+                        setError("No pudimos actualizar el temporizador de descanso."),
+                      )}
                       className="inline-flex items-center gap-2 rounded-xl border border-sky-300/25 px-3 py-2 text-xs text-sky-200"
                     >
-                      <TimerReset size={14} /> Iniciar descanso
+                      <TimerReset size={14} />
+                      {restUntil ? "Pausar descanso" : restPausedRemaining ? "Reanudar descanso" : "Iniciar descanso"}
                     </button>
                     <PlateCalculator />
-                    {restUntil && (
+                    {(restUntil || restPausedRemaining) && (
                       <button
                         type="button"
-                        onClick={cancelRest}
+                        onClick={() => void cancelRest().catch(() =>
+                          setError("No pudimos cancelar el descanso guardado."),
+                        )}
                         className="text-xs text-white/45"
                       >
                         Cancelar
@@ -993,7 +1445,9 @@ export default function RoutineDetailClient({
                 coachingByExercise={coachingByExercise}
                 records={sessionFeedback?.records || []}
                 onAddSet={addSet}
-                onUpdateSet={updateSet}
+                onUpdateSet={async (exerciseId, setId, patch) => {
+                  await updateSet(exerciseId, setId, patch);
+                }}
                 onDeleteSet={deleteSet}
                 onDuplicateSet={duplicateSet}
                 onMoveExercise={moveExercise}
@@ -1802,12 +2256,14 @@ function SessionMetrics({
   startedAt,
   finishedAt,
   restUntil,
+  restPausedRemaining,
 }: {
   completedSets: number;
   totalSets: number;
   startedAt: string;
   finishedAt: string | null;
   restUntil: number | null;
+  restPausedRemaining: number | null;
 }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -1827,15 +2283,85 @@ function SessionMetrics({
   );
   const restSeconds = restUntil
     ? Math.max(0, Math.ceil((restUntil - now) / 1_000))
-    : 0;
+    : restPausedRemaining
+      ? Math.ceil(restPausedRemaining / 1_000)
+      : 0;
   return (
     <section className="mt-7 grid gap-3 sm:grid-cols-3">
       <Metric value={`${completedSets}/${totalSets}`} label="Series" />
       <Metric value={secondsLabel(elapsed)} label="Duración" />
       <Metric
-        value={restUntil ? secondsLabel(restSeconds) : "—"}
-        label="Descanso"
+        value={restUntil || restPausedRemaining ? secondsLabel(restSeconds) : "—"}
+        label={restPausedRemaining ? "Descanso pausado" : "Descanso"}
       />
+    </section>
+  );
+}
+
+function LiveWorkoutNotificationSettings({
+  enabled,
+  permission,
+  message,
+  onEnable,
+  onDisable,
+}: {
+  enabled: boolean;
+  permission: NotificationPermission | "unsupported" | "insecure";
+  message: string;
+  onEnable: () => void;
+  onDisable: () => void;
+}) {
+  const unavailable = permission === "unsupported" || permission === "insecure";
+  return (
+    <section
+      aria-label="Notificaciones de entrenamiento"
+      className="mt-4 rounded-2xl border border-white/[.08] bg-white/[.025] p-4"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">TORO Live Workout</p>
+          <p className="mt-1 text-xs leading-relaxed text-white/45">
+            Recibí el ejercicio, la serie y el descanso en las notificaciones de Chrome. Los botones completan la serie o controlan el descanso de esta sesión.
+          </p>
+        </div>
+        {enabled ? (
+          <button
+            type="button"
+            onClick={onDisable}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white/65 hover:bg-white/[.05]"
+          >
+            <BellOff size={15} /> Desactivar
+          </button>
+        ) : permission === "denied" ? (
+          <span className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-amber-200/15 px-3 py-2 text-xs font-semibold text-amber-100/75">
+            <Bell size={15} /> Permiso bloqueado
+          </span>
+        ) : (
+          <button
+            type="button"
+            disabled={unavailable}
+            onClick={onEnable}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#b7ff00] px-3 py-2 text-xs font-bold text-black disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <Bell size={15} /> Activar notificaciones
+          </button>
+        )}
+      </div>
+      {permission === "denied" && (
+        <p className="mt-3 text-xs text-amber-100/65">
+          En Chrome, abrí el control de sitio junto a la dirección, cambiá Notificaciones a “Permitir” y volvé a cargar TORO.
+        </p>
+      )}
+      {unavailable && (
+        <p className="mt-3 text-xs text-white/40">
+          {permission === "insecure"
+            ? "Se requiere HTTPS; localhost funciona para desarrollo."
+            : "Este navegador no ofrece el soporte necesario. El entrenamiento continúa sin cambios."}
+        </p>
+      )}
+      {message && permission !== "denied" && !unavailable && (
+        <p role="status" className="mt-3 text-xs text-white/55">{message}</p>
+      )}
     </section>
   );
 }

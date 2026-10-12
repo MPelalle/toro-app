@@ -354,3 +354,13 @@ La política actual de última escritura por `clientUpdatedAt` es aceptable como
 5. Informar claramente si una operación no puede sincronizarse.
 6. No mezclar datos ni operaciones entre cuentas distintas en el mismo dispositivo.
 7. No almacenar secretos, tokens de sesión ni PINs en IndexedDB o Cache Storage.
+
+## TORO Live Workout
+
+La sesión activa puede publicar una notificación persistente por medio del Service Worker ya registrado en `public/sw.js`. La persona activa esta capacidad desde el panel de la sesión; el permiso nunca se solicita automáticamente. La notificación usa un `tag` estable y sólo presenta los botones disponibles según `Notification.maxActions`.
+
+Los botones no escriben en IndexedDB desde el Service Worker. `notificationclick` enfoca la pestaña de la sesión y solicita la acción con `MessageChannel`; la pestaña relee la sesión activa y sus series desde el repositorio offline existente y reutiliza el mismo guardado local que la interfaz. Completar una serie incluye los IDs de ejercicio y serie de la notificación para rechazar pulsaciones repetidas o avisos obsoletos. Si no hay una pestaña que confirme la operación, no se registra el cambio y se informa que debe abrirse TORO.
+
+El descanso continúa basándose en la hora de finalización ya usada por la pantalla. El tiempo pausado se conserva en el almacén de metadatos sincronizados por usuario, con la clave `workout-rest:<sessionId>` y el valor `paused:<milisegundos restantes>`; los valores numéricos existentes siguen representando la hora de fin absoluta. Esto evita añadir otra tabla o temporizador de fondo. La pestaña vuelve a calcular el tiempo con `Date.now()` al reanudarse; la notificación del sistema puede conservar el último texto recibido mientras el navegador suspende la página.
+
+Las notificaciones y el título dinámico dependen de una pestaña abierta para ejecutar las operaciones. Chrome/OS pueden ocultar acciones, limitar su cantidad o retrasar actualizaciones en segundo plano; el toque en el cuerpo sigue abriendo la sesión y una acción no confirmada nunca se presenta como guardada. La sesión no tiene un estado de pausa propio en el modelo actual; se puede pausar/reanudar el descanso, no la sesión completa.
