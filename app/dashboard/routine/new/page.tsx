@@ -6,13 +6,14 @@ import { ArrowLeft, Check, ChevronLeft, Dumbbell, Images, LayoutTemplate, Search
 import { useMemo, useState } from "react";
 import { ExerciseThumbnail } from "@/components/workout/ExerciseThumbnail";
 import { ExerciseVideoModal } from "@/components/workout/ExerciseVideoModal";
+import { CustomExerciseForm } from "@/components/workout/CustomExerciseForm";
 import { RoutineNotesEditor } from "@/components/routine/RoutineNotes";
 import { exerciseOptions, muscleGroups, type ExerciseOption } from "@/lib/exercise-catalog";
 import { createRoutineOfflineFirst } from "@/lib/routines";
 
 type DraftExercise = {
   id: string;
-  catalogId: string;
+  catalogId: string | null;
   name: string;
   muscle: string;
   muscleId: string;
@@ -34,7 +35,7 @@ const templates = [
 function makeExercise(option: ExerciseOption): DraftExercise {
   return {
     id: `${option.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    catalogId: option.id,
+    catalogId: option.isCustom ? null : option.id,
     name: option.name,
     muscle: option.muscle,
     muscleId: option.muscleId,
@@ -106,8 +107,25 @@ export default function NewRoutinePage() {
   };
 
   const toggleExercise = (option: ExerciseOption) => {
-    const exists = exercises.some((exercise) => exercise.catalogId === option.id);
-    updateExercises(exists ? exercises.filter((exercise) => exercise.catalogId !== option.id) : [...exercises, makeExercise(option)]);
+    const matches = (exercise: DraftExercise) => option.isCustom
+      ? exercise.catalogId === null && exercise.name === option.name && exercise.muscleId === option.muscleId
+      : exercise.catalogId === option.id;
+    const exists = exercises.some(matches);
+    updateExercises(exists ? exercises.filter((exercise) => !matches(exercise)) : [...exercises, makeExercise(option)]);
+  };
+
+  const addCustomExercise = (option: ExerciseOption) => {
+    const duplicate = exercises.some((exercise) =>
+      exercise.catalogId === null &&
+      exercise.name.toLocaleLowerCase("es") === option.name.toLocaleLowerCase("es") &&
+      exercise.muscleId === option.muscleId,
+    );
+    if (duplicate) {
+      setError("Ese ejercicio personalizado ya está agregado para este día.");
+      return;
+    }
+    setError("");
+    toggleExercise(option);
   };
 
   const applyTemplate = (template: typeof templates[number]) => {
@@ -200,7 +218,7 @@ export default function NewRoutinePage() {
           <div role="tablist" aria-label="Día de entrenamiento" className="mt-5 flex gap-2 overflow-x-auto border-t border-white/[.07] pt-5 pb-1">{selectedDays.map((day) => <button key={day} type="button" role="tab" aria-selected={activeDay === day} onClick={() => selectDay(day)} className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold ${activeDay === day ? "bg-[#b7ff00] text-black" : "bg-white/[.05] text-white/55"}`}>{day} <span className="ml-1 opacity-60">{(byDay[day] ?? []).length}</span></button>)}</div>
 
           {error && <p role="alert" className="mt-5 rounded-xl border border-red-400/20 bg-red-400/[.08] p-3 text-sm text-red-200">{error}</p>}
-          {builderStep === "select" ? <ExerciseGallery groups={exerciseGroups} selected={exercises} search={search} muscleFilter={muscleFilter} activeDay={activeDay} onSearch={setSearch} onMuscleFilter={setMuscleFilter} onToggle={toggleExercise} onContinue={continueToTargets} /> : <ExerciseTargetsStep exercises={exercises} activeDay={activeDay} onBack={() => setBuilderStep("select")} onChange={(exerciseId, patch) => updateExercises(exercises.map((item) => item.id === exerciseId ? { ...item, ...patch } : item))} onRemove={(exerciseId) => updateExercises(exercises.filter((item) => item.id !== exerciseId))} onSave={() => void saveRoutine()} />}
+          {builderStep === "select" ? <ExerciseGallery groups={exerciseGroups} selected={exercises} search={search} muscleFilter={muscleFilter} activeDay={activeDay} onSearch={setSearch} onMuscleFilter={setMuscleFilter} onToggle={toggleExercise} onAddCustom={addCustomExercise} onContinue={continueToTargets} /> : <ExerciseTargetsStep exercises={exercises} activeDay={activeDay} onBack={() => setBuilderStep("select")} onChange={(exerciseId, patch) => updateExercises(exercises.map((item) => item.id === exerciseId ? { ...item, ...patch } : item))} onRemove={(exerciseId) => updateExercises(exercises.filter((item) => item.id !== exerciseId))} onSave={() => void saveRoutine()} />}
         </section>
       </div>
     </main>
@@ -215,7 +233,7 @@ function TemplateChoice({ onBack, onChoose }: { onBack: () => void; onChoose: (t
   return <main className="min-h-dvh bg-[#090a08] px-4 pb-36 pt-28 text-white sm:px-8"><div className="mx-auto max-w-4xl"><button type="button" onClick={onBack} className="inline-flex items-center gap-2 text-xs text-white/45 hover:text-white"><ChevronLeft size={15} /> Volver a las opciones</button><header className="mt-8"><p className="text-[10px] font-bold tracking-[.22em] text-[#b7ff00]/70">PLANTILLAS</p><h1 className="mt-2 text-3xl font-semibold tracking-[-.05em] sm:text-4xl">Elegí una base.</h1><p className="mt-2 text-sm text-white/40">No te ata a ningún formato: después podés editar ejercicios, series y reps.</p></header><div className="mt-8 grid gap-4">{templates.map((template) => <button key={template.name} type="button" onClick={() => onChoose(template)} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/[.08] bg-[#10110e] p-5 text-left transition hover:border-[#b7ff00]/35 hover:bg-[#b7ff00]/[.035]"><div><p className="text-lg font-semibold">{template.name}</p><p className="mt-1 max-w-xl text-sm text-white/40">{template.description}</p></div><div className="flex shrink-0 gap-2 text-xs"><span className="rounded-lg bg-white/[.06] px-2.5 py-1.5 text-white/60">{template.days.length} días</span><span className="rounded-lg bg-[#b7ff00]/[.08] px-2.5 py-1.5 font-semibold text-[#d7ff78]">{Object.values(template.exercisesByDay).reduce((total, exercises) => total + exercises.length, 0)} ejercicios</span></div></button>)}</div></div></main>;
 }
 
-function ExerciseGallery({ groups, selected, search, muscleFilter, activeDay, onSearch, onMuscleFilter, onToggle, onContinue }: { groups: Array<{ id: string; name: string; exercises: { multiarticulares: readonly { id: string; name: string; equipment: readonly string[] }[]; uniarticulares: readonly { id: string; name: string; equipment: readonly string[] }[] } }>; selected: DraftExercise[]; search: string; muscleFilter: string; activeDay: string; onSearch: (value: string) => void; onMuscleFilter: (value: string) => void; onToggle: (exercise: ExerciseOption) => void; onContinue: () => void }) {
+function ExerciseGallery({ groups, selected, search, muscleFilter, activeDay, onSearch, onMuscleFilter, onToggle, onAddCustom, onContinue }: { groups: Array<{ id: string; name: string; exercises: { multiarticulares: readonly { id: string; name: string; equipment: readonly string[] }[]; uniarticulares: readonly { id: string; name: string; equipment: readonly string[] }[] } }>; selected: DraftExercise[]; search: string; muscleFilter: string; activeDay: string; onSearch: (value: string) => void; onMuscleFilter: (value: string) => void; onToggle: (exercise: ExerciseOption) => void; onAddCustom: (exercise: ExerciseOption) => void; onContinue: () => void }) {
   return <div className="mt-6">
   {/* HEADER */}
   <div className="flex flex-wrap items-end justify-between gap-3">
@@ -442,6 +460,22 @@ function ExerciseGallery({ groups, selected, search, muscleFilter, activeDay, on
     </p>
   )}
 
+  {selected.some((exercise) => exercise.catalogId === null) && (
+    <section className="mt-6 space-y-2">
+      <h2 className="px-1 text-xs font-bold uppercase tracking-[.14em] text-white/40">Ejercicios personalizados</h2>
+      {selected.filter((exercise) => exercise.catalogId === null).map((exercise) => (
+        <button key={exercise.id} type="button" onClick={() => onToggle({ id: exercise.id, name: exercise.name, muscle: exercise.muscle, muscleId: exercise.muscleId, category: "uniarticulares", equipment: [], isCustom: true })} className="flex min-h-12 w-full items-center justify-between rounded-xl border border-[#b7ff00]/20 bg-[#b7ff00]/[.05] px-4 text-left">
+          <span><span className="block text-sm font-semibold">{exercise.name}</span><span className="text-xs text-white/40">{exercise.muscle}</span></span>
+          <span className="text-xs font-semibold text-[#d7ff78]">Quitar</span>
+        </button>
+      ))}
+    </section>
+  )}
+
+  <div className="mt-6">
+    <CustomExerciseForm onAdd={onAddCustom} />
+  </div>
+
   {/* BARRA INFERIOR */}
   <div
     className="
@@ -499,7 +533,7 @@ function ExerciseGallery({ groups, selected, search, muscleFilter, activeDay, on
 }
 
 function ExerciseTargetsStep({ exercises, activeDay, onBack, onChange, onRemove, onSave }: { exercises: DraftExercise[]; activeDay: string; onBack: () => void; onChange: (exerciseId: string, patch: Partial<DraftExercise>) => void; onRemove: (exerciseId: string) => void; onSave: () => void }) {
-  return <div className="mt-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-lg font-semibold">Series y reps de {activeDay}</p><p className="mt-1 text-xs text-white/35">Rápido y simple. El peso se carga recién cuando entrenás.</p></div><button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-xs font-bold text-[#b7ff00]"><Images size={15} /> Cambiar ejercicios</button></div>{exercises.length ? <div className="mt-5 space-y-3">{exercises.map((exercise, index) => <article key={exercise.id} className="rounded-2xl border border-white/[.08] bg-black/15 p-3 sm:p-4"><div className="flex flex-wrap items-start gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-[#b7ff00] text-xs font-black text-black">{index + 1}</span><ExerciseThumbnail exerciseId={exercise.catalogId} muscleId={exercise.muscleId} name={exercise.name} className="h-12 w-12 rounded-xl" /><div className="min-w-0 flex-1"><p className="truncate font-semibold">{exercise.name}</p><p className="mt-0.5 text-xs text-white/35">{exercise.muscle}</p><ExerciseVideoModal exerciseId={exercise.catalogId} exerciseName={exercise.name} className="mt-2"/></div><button type="button" onClick={() => onRemove(exercise.id)} className="grid h-8 w-8 place-items-center rounded-lg text-white/35 hover:bg-red-400/10 hover:text-red-300" aria-label={`Quitar ${exercise.name}`}><X size={15} /></button></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><TargetPicker label="Series" value={exercise.sets} options={seriesOptions} onChange={(sets) => onChange(exercise.id, { sets })} /><TargetPicker label="Reps por serie" value={exercise.reps} options={repsOptions} onChange={(reps) => onChange(exercise.id, { reps })} /></div></article>)}</div> : <div className="mt-5 rounded-2xl border border-dashed border-white/10 px-5 py-10 text-center"><p className="text-sm text-white/45">No hay ejercicios para este día.</p><button type="button" onClick={onBack} className="mt-3 text-sm font-bold text-[#b7ff00]">Elegir ejercicios</button></div>}<div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-white/[.07] pt-5"><button type="button" onClick={onBack} className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold text-white/65">Volver</button><button type="button" onClick={onSave} className="inline-flex items-center gap-2 rounded-xl bg-[#b7ff00] px-5 py-3 text-sm font-bold text-black"><Check size={16} /> Crear rutina</button></div></div>;
+  return <div className="mt-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-lg font-semibold">Series y reps de {activeDay}</p><p className="mt-1 text-xs text-white/35">Rápido y simple. El peso se carga recién cuando entrenás.</p></div><button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-xs font-bold text-[#b7ff00]"><Images size={15} /> Cambiar ejercicios</button></div>{exercises.length ? <div className="mt-5 space-y-3">{exercises.map((exercise, index) => <article key={exercise.id} className="rounded-2xl border border-white/[.08] bg-black/15 p-3 sm:p-4"><div className="flex flex-wrap items-start gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-[#b7ff00] text-xs font-black text-black">{index + 1}</span><ExerciseThumbnail exerciseId={exercise.catalogId ?? exercise.id} muscleId={exercise.muscleId} name={exercise.name} className="h-12 w-12 rounded-xl" /><div className="min-w-0 flex-1"><p className="truncate font-semibold">{exercise.name}{exercise.catalogId === null && <span className="ml-2 text-[10px] font-medium text-[#d7ff78]">Personalizado</span>}</p><p className="mt-0.5 text-xs text-white/35">{exercise.muscle}</p>{exercise.catalogId && <ExerciseVideoModal exerciseId={exercise.catalogId} exerciseName={exercise.name} className="mt-2"/>}</div><button type="button" onClick={() => onRemove(exercise.id)} className="grid h-8 w-8 place-items-center rounded-lg text-white/35 hover:bg-red-400/10 hover:text-red-300" aria-label={`Quitar ${exercise.name}`}><X size={15} /></button></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><TargetPicker label="Series" value={exercise.sets} options={seriesOptions} onChange={(sets) => onChange(exercise.id, { sets })} /><TargetPicker label="Reps por serie" value={exercise.reps} options={repsOptions} onChange={(reps) => onChange(exercise.id, { reps })} /></div></article>)}</div> : <div className="mt-5 rounded-2xl border border-dashed border-white/10 px-5 py-10 text-center"><p className="text-sm text-white/45">No hay ejercicios para este día.</p><button type="button" onClick={onBack} className="mt-3 text-sm font-bold text-[#b7ff00]">Elegir ejercicios</button></div>}<div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-white/[.07] pt-5"><button type="button" onClick={onBack} className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold text-white/65">Volver</button><button type="button" onClick={onSave} className="inline-flex items-center gap-2 rounded-xl bg-[#b7ff00] px-5 py-3 text-sm font-bold text-black"><Check size={16} /> Crear rutina</button></div></div>;
 }
 
 function TargetPicker({ label, value, options, onChange }: { label: string; value: number; options: number[]; onChange: (value: number) => void }) {

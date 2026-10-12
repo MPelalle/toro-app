@@ -13,6 +13,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { BodyProgressPanel } from "@/components/progress/BodyProgressPanel";
 import { WorkoutHistoryPanel } from "@/components/progress/WorkoutHistoryPanel";
+import { PerformanceMetric } from "@/components/ui/PerformanceMetric";
 
 type Progress = {
   summary: {
@@ -26,6 +27,8 @@ type Progress = {
     sessions: number | null;
     volume: number | null;
     records: number;
+    hasPreviousSessions: boolean;
+    hasPreviousCompletedSets: boolean;
   };
   consistency: {
     targetSessionsPerWeek: number;
@@ -116,22 +119,30 @@ export default function ProgressPage() {
   );
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [range, setRange] = useState<"1M" | "3M" | "6M" | "1Y" | "ALL">("3M");
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    void fetch(`/api/workout-progress?range=${range}`)
-      .then((response) =>
-        response.ok ? (response.json() as Promise<Progress>) : Promise.reject(),
-      )
+    void fetch(`/api/workout-progress?range=${range}`, { cache: "no-store" })
+      .then(async (response) => {
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(typeof body.error === "string" ? body.error : "No pudimos cargar tu historial de entrenamiento.");
+        return body as Progress;
+      })
       .then((data) => {
         if (active) {
           setProgress(data);
           setSelectedDate(data.calendar.at(-1)?.date || null);
         }
       })
-      .catch(() => {
-        if (active)
-          setError("No pudimos cargar tu historial de entrenamiento.");
+      .catch((cause: unknown) => {
+        if (active) {
+          setProgress(null);
+          setError(cause instanceof Error ? cause.message : "No pudimos cargar tu historial de entrenamiento.");
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
       });
     return () => {
       active = false;
@@ -184,6 +195,37 @@ export default function ProgressPage() {
     (total, day) => total + day.volume,
     0,
   );
+  const periodLabel = {
+    "1M": "Último mes",
+    "3M": "Últimos 3 meses",
+    "6M": "Últimos 6 meses",
+    "1Y": "Último año",
+    ALL: "Todo el historial",
+  }[range];
+  const comparisonPeriodLabel = {
+    "1M": "mes anterior",
+    "3M": "trimestre anterior",
+    "6M": "semestre anterior",
+    "1Y": "año anterior",
+    ALL: "",
+  }[range];
+  const comparePercent = (value: number | null) =>
+    value === null
+      ? undefined
+      : {
+          label: `${value > 0 ? "+" : ""}${value}% vs. ${comparisonPeriodLabel}`,
+          direction: value > 0 ? "up" as const : value < 0 ? "down" as const : "unchanged" as const,
+        };
+  const compareRecords = () => {
+    if (range === "ALL" || !progress?.comparison.hasPreviousCompletedSets) return undefined;
+    const delta = progress?.comparison.records ?? 0;
+    return {
+      label: delta === 0
+        ? `Sin cambios vs. ${comparisonPeriodLabel}`
+        : `${delta > 0 ? "+" : ""}${delta} PR vs. ${comparisonPeriodLabel}`,
+      direction: delta > 0 ? "up" as const : delta < 0 ? "down" as const : "unchanged" as const,
+    };
+  };
 
   return (
     <main className="relative min-h-dvh overflow-hidden bg-[#090a08] px-4 pb-36 pt-28 text-white sm:px-8">
@@ -235,7 +277,7 @@ export default function ProgressPage() {
             ) : (
               <>
                 <div
-                  className="mt-7 flex gap-2 overflow-x-auto pb-1"
+                  className="mt-7 flex items-center gap-2 overflow-x-auto pb-1"
                   role="tablist"
                   aria-label="Período de progreso"
                 >
@@ -244,49 +286,52 @@ export default function ProgressPage() {
                       key={item}
                       role="tab"
                       type="button"
-                      onClick={() => setRange(item)}
+                      onClick={() => {
+                        if (item === range) return;
+                        setError("");
+                        setProgress(null);
+                        setIsLoading(true);
+                        setRange(item);
+                      }}
                       aria-selected={range === item}
                       className={`shrink-0 rounded-full px-4 py-2 text-xs font-bold ${range === item ? "bg-[#b7ff00] text-black" : "bg-white/[.06] text-white/55"}`}
                     >
                       {item === "ALL" ? "TODO" : item}
                     </button>
                   ))}
+                  <p className="ml-auto hidden shrink-0 text-xs text-white/40 sm:block">{periodLabel}</p>
                 </div>
-                <section className="mt-4 grid gap-3 sm:grid-cols-4">
-                  <Metric
+                {isLoading && <p className="mt-2 text-xs text-white/40" role="status">Actualizando métricas…</p>}
+                <section className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy={isLoading}>
+                  <PerformanceMetric
                     icon={<Dumbbell size={18} />}
                     value={String(progress.summary.sessions)}
                     label="Entrenamientos"
-                    detail={
-                      progress.comparison.sessions === null
-                        ? undefined
-                        : `${progress.comparison.sessions > 0 ? "+" : ""}${progress.comparison.sessions}% vs. período anterior`
-                    }
+                    context={`${periodLabel}${progress.comparison.sessions === null && range !== "ALL" ? " · sin base comparable" : ""}`}
+                    comparison={comparePercent(progress.comparison.sessions)}
+                    variant="primary"
                   />
-                  <Metric
+                  <PerformanceMetric
                     icon={<TrendingUp size={18} />}
                     value={`${wholeNumber.format(progress.summary.volume)} kg`}
-                    label="Volumen registrado"
-                    detail={
-                      progress.comparison.volume === null
-                        ? undefined
-                        : `${progress.comparison.volume > 0 ? "+" : ""}${progress.comparison.volume}% vs. período anterior`
-                    }
+                    label="Volumen total"
+                    context={`${periodLabel}${progress.comparison.volume === null && range !== "ALL" ? " · sin base comparable" : ""}`}
+                    comparison={comparePercent(progress.comparison.volume)}
                   />
-                  <Metric
+                  <PerformanceMetric
                     icon={<Medal size={18} />}
                     value={String(progress.summary.records)}
-                    label="PR del período"
-                    detail={
-                      progress.comparison.records
-                        ? `${progress.comparison.records > 0 ? "+" : ""}${progress.comparison.records} vs. período anterior`
-                        : undefined
-                    }
+                    label="Récords personales"
+                    context={range === "ALL" ? periodLabel : `Durante el período${!progress.comparison.hasPreviousCompletedSets ? " · sin base comparable" : ""}`}
+                    comparison={compareRecords()}
+                    variant="record"
                   />
-                  <Metric
+                  <PerformanceMetric
                     icon={<Flame size={18} />}
                     value={`${progress.consistency.currentWeekSessions}/${progress.consistency.targetSessionsPerWeek}`}
                     label="Objetivo semanal"
+                    context={`${progress.consistency.currentWeekSessions} de ${progress.consistency.targetSessionsPerWeek} sesiones esta semana`}
+                    variant="goal"
                   />
                 </section>
                 <section className="mt-6 grid gap-3 lg:grid-cols-[1.2fr_.8fr]">
@@ -741,26 +786,6 @@ export default function ProgressPage() {
   );
 }
 
-function Metric({
-  icon,
-  value,
-  label,
-  detail,
-}: {
-  icon: React.ReactNode;
-  value: string;
-  label: string;
-  detail?: string;
-}) {
-  return (
-    <article className="rounded-2xl border border-white/[.07] bg-white/[.025] p-4">
-      <div className="text-[#b7ff00]">{icon}</div>
-      <p className="mt-5 text-2xl font-semibold tracking-tight">{value}</p>
-      <p className="mt-1 text-xs text-white/35">{label}</p>
-      {detail && <p className="mt-2 text-[10px] text-[#d7ff78]">{detail}</p>}
-    </article>
-  );
-}
 function Detail({
   label,
   value,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildProgressAnalytics,
   compareSummary,
+  previousRangeStart,
   rangeStart,
 } from "@/lib/progress-analytics";
 import { bodyWeightTrend } from "@/lib/body-progress";
@@ -56,6 +57,55 @@ describe("progress analytics", () => {
         .slice(0, 10),
     ).toBe("2026-05-16");
     expect(rangeStart("ALL")).toBeNull();
+  });
+
+  it("clamps rolling period boundaries at month ends", () => {
+    const now = new Date("2026-03-31T12:00:00Z");
+    expect(rangeStart("1M", now)?.toISOString()).toBe("2026-02-28T12:00:00.000Z");
+    expect(previousRangeStart("1M", now)?.toISOString()).toBe("2026-01-28T12:00:00.000Z");
+  });
+
+  it("counts the actual current week and includes weeks without training in consistency", () => {
+    const result = buildProgressAnalytics(
+      [
+        {
+          id: "a",
+          finishedAt: "2026-01-12T12:00:00Z",
+          durationSeconds: 3600,
+          exercises: [],
+        },
+      ],
+      2,
+      {
+        periodStart: new Date("2026-01-05T12:00:00Z"),
+        now: new Date("2026-01-19T12:00:00Z"),
+      },
+    );
+
+    expect(result.consistency).toMatchObject({
+      currentWeekSessions: 0,
+      completedWeeks: 0,
+      totalWeeks: 3,
+      rate: 0,
+      streakWeeks: 0,
+    });
+  });
+
+  it("assigns late Sunday sessions to the Argentina calendar week", () => {
+    const result = buildProgressAnalytics(
+      [
+        { id: "a", finishedAt: "2026-01-05T15:00:00Z", durationSeconds: 3600, exercises: [] },
+        { id: "b", finishedAt: "2026-01-11T23:30:00-03:00", durationSeconds: 3600, exercises: [] },
+      ],
+      2,
+      {
+        periodStart: new Date("2026-01-05T12:00:00Z"),
+        now: new Date("2026-01-11T23:45:00-03:00"),
+      },
+    );
+
+    expect(result.consistency.currentWeekSessions).toBe(2);
+    expect(result.calendar.map((day) => day.date)).toContain("2026-01-11");
   });
 
   it("compares periods and does not infer a weight trend from two measurements", () => {

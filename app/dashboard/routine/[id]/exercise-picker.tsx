@@ -2,6 +2,8 @@
 
 import { Plus, Search, X } from "lucide-react";
 import { useState } from "react";
+import { CustomExerciseForm } from "@/components/workout/CustomExerciseForm";
+import { ExerciseInfoButton } from "@/components/workout/ExerciseInfoButton";
 import { exerciseOptions, muscleGroups, type ExerciseOption } from "@/lib/exercise-catalog";
 
 export default function ExercisePicker({
@@ -78,13 +80,12 @@ export default function ExercisePicker({
           </div>
         </div>
         <div className="max-h-[52dvh] overflow-y-auto px-4 pb-5">
-          {exercises.length ? (
-            exercises.map((exercise) => (
+          {exercises.length ? exercises.map((exercise) => (
+            <div key={exercise.id} className="flex min-h-14 items-center gap-2 border-b border-white/[.07] py-2">
               <button
-                key={exercise.id}
                 type="button"
                 onClick={() => onSelect(exercise)}
-                className="flex min-h-14 w-full items-center justify-between gap-3 border-b border-white/[.07] py-3 text-left"
+                className="flex min-w-0 flex-1 items-center justify-between gap-3 py-1 text-left"
               >
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-semibold">{exercise.name}</span>
@@ -92,12 +93,16 @@ export default function ExercisePicker({
                 </span>
                 <Plus size={17} className="shrink-0 text-[#b7ff00]" />
               </button>
-            ))
-          ) : (
-            <p className="py-10 text-center text-sm text-white/40">
+              <ExerciseInfoButton exerciseName={exercise.name} exerciseId={exercise.id} muscle={exercise.muscle} equipment={exercise.equipment} />
+            </div>
+          )) : (
+            <p className="py-8 text-center text-sm text-white/40">
               No encontramos ejercicios con esos filtros.
             </p>
           )}
+          <div className="mt-4">
+            <CustomExerciseForm compact onAdd={onSelect} />
+          </div>
         </div>
       </section>
     </div>

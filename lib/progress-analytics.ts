@@ -1,4 +1,5 @@
 import { estimateOneRepMax } from "@/lib/workout-progress";
+import { appCalendarDate, appDateKey } from "@/lib/app-date";
 
 export type ProgressRange = "1M" | "3M" | "6M" | "1Y" | "ALL";
 export type AnalyticsSet = {
@@ -15,24 +16,37 @@ export type AnalyticsSession = {
   exercises: Array<{ name: string; muscle: string; sets: AnalyticsSet[] }>;
 };
 
+function shiftCalendarMonths(value: Date, amount: number) {
+  const year = value.getUTCFullYear();
+  const month = value.getUTCMonth() + amount;
+  const targetYear = year + Math.floor(month / 12);
+  const targetMonth = ((month % 12) + 12) % 12;
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(
+    targetYear,
+    targetMonth,
+    Math.min(value.getUTCDate(), lastDay),
+    value.getUTCHours(),
+    value.getUTCMinutes(),
+    value.getUTCSeconds(),
+    value.getUTCMilliseconds(),
+  ));
+}
+
 export function rangeStart(range: ProgressRange, now = new Date()) {
   if (range === "ALL") return null;
   const months =
     range === "1M" ? 1 : range === "3M" ? 3 : range === "6M" ? 6 : 12;
-  const result = new Date(now);
-  result.setMonth(result.getMonth() - months);
-  return result;
+  return shiftCalendarMonths(now, -months);
 }
 
 /** Beginning of the period immediately preceding `range`; ALL has no fair comparison. */
 export function previousRangeStart(range: ProgressRange, now = new Date()) {
   const start = rangeStart(range, now);
   if (!start) return null;
-  const previous = new Date(start);
   const months =
     range === "1M" ? 1 : range === "3M" ? 3 : range === "6M" ? 6 : 12;
-  previous.setMonth(previous.getMonth() - months);
-  return previous;
+  return shiftCalendarMonths(start, -months);
 }
 
 export function compareSummary(
@@ -57,13 +71,25 @@ function validWorkingSet(set: AnalyticsSet) {
   );
 }
 function dateKey(value: Date | string) {
-  return new Date(value).toISOString().slice(0, 10);
+  return appDateKey(value);
 }
 function weekKey(value: Date | string) {
-  const date = new Date(value);
+  const date = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T12:00:00.000Z`)
+    : appCalendarDate(value);
   const day = date.getUTCDay() || 7;
   date.setUTCDate(date.getUTCDate() - day + 1);
   return date.toISOString().slice(0, 10);
+}
+function listWeeks(start: string, end: string) {
+  const weeks: string[] = [];
+  const cursor = new Date(`${start}T12:00:00Z`);
+  const endDate = new Date(`${end}T12:00:00Z`);
+  while (cursor <= endDate) {
+    weeks.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 7);
+  }
+  return weeks;
 }
 function percent(current: number, previous: number) {
   return previous > 0
@@ -74,7 +100,9 @@ function percent(current: number, previous: number) {
 export function buildProgressAnalytics(
   sessions: AnalyticsSession[],
   targetSessionsPerWeek: number,
+  options: { periodStart?: Date | null; now?: Date } = {},
 ) {
+  const now = options.now || new Date();
   const ordered = sessions
     .filter((session) => session.finishedAt)
     .sort(
@@ -250,11 +278,16 @@ export function buildProgressAnalytics(
     const key = weekKey(session.finishedAt!);
     weekSessions.set(key, (weekSessions.get(key) || 0) + 1);
   });
-  const weeks = [...weekSessions.keys()];
+  const currentWeek = weekKey(appCalendarDate(now));
+  const firstWeek = options.periodStart
+    ? weekKey(options.periodStart)
+    : ordered[0]?.finishedAt
+      ? weekKey(ordered[0].finishedAt)
+      : currentWeek;
+  const weeks = listWeeks(firstWeek, currentWeek);
   const completedWeeks = weeks.filter(
     (week) => (weekSessions.get(week) || 0) >= targetSessionsPerWeek,
   ).length;
-  const currentWeek = weeks.at(-1);
   let consistencyStreak = 0;
   for (const week of [...weeks].reverse()) {
     if ((weekSessions.get(week) || 0) >= targetSessionsPerWeek)
@@ -309,7 +342,7 @@ export function buildProgressAnalytics(
     },
     consistency: {
       targetSessionsPerWeek,
-      currentWeekSessions: currentWeek ? weekSessions.get(currentWeek) || 0 : 0,
+      currentWeekSessions: weekSessions.get(currentWeek) || 0,
       completedWeeks,
       totalWeeks: weeks.length,
       streakWeeks: consistencyStreak,

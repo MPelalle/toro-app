@@ -16,6 +16,7 @@ export type ExerciseOption = {
   category: ExerciseCategory;
   equipment: string[];
   videoUrl?: string;
+  isCustom?: boolean;
 };
 
 

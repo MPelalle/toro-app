@@ -48,6 +48,7 @@ import {
   type SessionFeedback,
 } from "@/lib/training-coach";
 import { ExerciseInsightActions } from "@/components/workout/ExerciseInsightActions";
+import { ExerciseInfoButton } from "@/components/workout/ExerciseInfoButton";
 import { PlateCalculator } from "@/components/workout/PlateCalculator";
 import { RoutineNotes } from "@/components/routine/RoutineNotes";
 import type { ExerciseOption } from "@/lib/exercise-catalog";
@@ -614,7 +615,7 @@ export default function RoutineDetailClient({
           exercise.id === picker.exerciseId
             ? {
                 ...exercise,
-                catalogExerciseId: option.id,
+                catalogExerciseId: option.isCustom ? null : option.id,
                 name: option.name,
                 muscle: option.muscle,
                 updatedAt: now,
@@ -635,7 +636,7 @@ export default function RoutineDetailClient({
             exercise.id === source.routineExerciseId
               ? {
                   ...exercise,
-                  catalogExerciseId: option.id,
+                  catalogExerciseId: option.isCustom ? null : option.id,
                   name: option.name,
                   muscle: option.muscle,
                 }
@@ -683,7 +684,7 @@ export default function RoutineDetailClient({
             version: 1,
             sessionId: session.id,
             routineExerciseId: session.routineId ? createClientId() : null,
-            catalogExerciseId: option.id,
+            catalogExerciseId: option.isCustom ? null : option.id,
             position: session.exercises.length,
             name: option.name,
             muscle: option.muscle,
@@ -1172,6 +1173,11 @@ function StartWorkoutCard({
                   exerciseId={exercise.catalogExerciseId}
                   exerciseName={exercise.name}
                 />
+                <ExerciseInfoButton
+                  exerciseId={exercise.catalogExerciseId}
+                  exerciseName={exercise.name}
+                  muscle={exercise.muscle}
+                />
               </div>
               <p className="shrink-0 text-xs text-white/55">
                 {exercise.sets} × {exercise.reps}
@@ -1271,6 +1277,11 @@ function WorkoutLog({
                 <ExerciseInsightActions
                   exerciseId={exercise.catalogExerciseId}
                   exerciseName={exercise.name}
+                />
+                <ExerciseInfoButton
+                  exerciseId={exercise.catalogExerciseId}
+                  exerciseName={exercise.name}
+                  muscle={exercise.muscle}
                 />
               </div>
               {status === "IN_PROGRESS" && (

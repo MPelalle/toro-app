@@ -3,6 +3,14 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --toro-accent: #b7ff00;
+  --toro-surface-raised: #10110e;
+  --toro-surface-subtle: rgba(255, 255, 255, 0.025);
+  --toro-border-subtle: rgba(255, 255, 255, 0.08);
+  --toro-text-muted: rgba(255, 255, 255, 0.45);
+  --toro-metric-foreground: #f4f5ef;
+  --toro-radius-card: 1.25rem;
+  --toro-motion-fast: 160ms;
 }
 
 @theme inline {
@@ -16,6 +24,23 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+  }
+}
+
+html[data-theme="light"] {
+  --toro-accent: #587900;
+  --toro-surface-raised: #ffffff;
+  --toro-surface-subtle: rgba(22, 25, 20, 0.035);
+  --toro-border-subtle: rgba(22, 25, 20, 0.12);
+  --toro-text-muted: rgba(22, 25, 20, 0.58);
+  --toro-metric-foreground: #161914;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --toro-surface-subtle: rgba(255, 255, 255, 0.035);
+    --toro-border-subtle: rgba(255, 255, 255, 0.08);
+    --toro-text-muted: rgba(255, 255, 255, 0.45);
   }
 }
 
@@ -67,6 +92,92 @@ h6 {
 
 .input:focus {
   border-color: rgba(183, 255, 0, 0.55);
+}
+
+.performance-metric {
+  display: flex;
+  min-width: 0;
+  min-height: 9.25rem;
+  flex-direction: column;
+  border: 1px solid var(--toro-border-subtle);
+  border-radius: var(--toro-radius-card);
+  background: var(--toro-surface-subtle);
+  padding: 1rem;
+  color: var(--toro-metric-foreground);
+  transition: border-color var(--toro-motion-fast) ease, background-color var(--toro-motion-fast) ease;
+}
+
+.performance-metric--primary {
+  min-height: 10.5rem;
+  border-color: color-mix(in srgb, var(--toro-accent) 28%, transparent);
+  background: color-mix(in srgb, var(--toro-accent) 5%, var(--toro-surface-raised));
+}
+
+.performance-metric--record {
+  border-color: color-mix(in srgb, var(--toro-accent) 22%, transparent);
+}
+
+.performance-metric--goal {
+  background: var(--toro-surface-raised);
+}
+
+.performance-metric__heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.performance-metric__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--toro-accent);
+}
+
+.performance-metric__label {
+  overflow: hidden;
+  color: var(--toro-text-muted);
+  font-size: 0.7rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.performance-metric__value {
+  margin-top: auto;
+  padding-top: 1rem;
+  overflow-wrap: anywhere;
+  color: var(--toro-metric-foreground);
+  font-size: clamp(1.25rem, 4vw, 1.75rem);
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+}
+
+.performance-metric--primary .performance-metric__value {
+  font-size: clamp(1.5rem, 5vw, 2rem);
+}
+
+.performance-metric__context {
+  margin-top: 0.375rem;
+  color: var(--toro-text-muted);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.performance-metric__comparison {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.25rem;
+  margin-top: 0.625rem;
+  color: var(--toro-text-muted);
+  font-size: 0.65rem;
+  line-height: 1.4;
+}
+
+.performance-metric__comparison svg {
+  flex: none;
+  margin-top: 0.0625rem;
 }
 
 /* Shared dashboard atmosphere for the compact routine and habit views. */

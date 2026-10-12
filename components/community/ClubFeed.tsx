@@ -9,7 +9,7 @@ import {
   Send,
   Trophy,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { UserAvatar } from "@/components/user/UserAvatar";
 
 type Actor = {
@@ -80,9 +80,10 @@ function relativeTime(value: string) {
 }
 
 function formatDuration(seconds: number) {
+  if (seconds <= 0) return "Sin dato";
   const hours = Math.floor(seconds / 3_600);
   const minutes = Math.floor((seconds % 3_600) / 60);
-  return hours ? `${hours} h ${minutes} min` : `${Math.max(1, minutes)} min`;
+  return hours ? `${hours} h ${minutes} min` : `${minutes} min`;
 }
 
 function formatVolume(volume: number) {
@@ -110,6 +111,8 @@ export function ClubFeed() {
   const [commentInput, setCommentInput] = useState<Record<string, string>>({});
   const [commentLoading, setCommentLoading] = useState<Record<string, boolean>>({});
   const [submittingComment, setSubmittingComment] = useState<string | null>(null);
+  const [pendingReactions, setPendingReactions] = useState<Set<string>>(() => new Set());
+  const pendingReactionIds = useRef(new Set<string>());
 
   const load = useCallback(async (cursor?: string | null) => {
     const isMore = Boolean(cursor);
@@ -134,6 +137,9 @@ export function ClubFeed() {
   }, [load]);
 
   const react = async (activity: Activity) => {
+    if (pendingReactionIds.current.has(activity.id)) return;
+    pendingReactionIds.current.add(activity.id);
+    setPendingReactions((current) => new Set(current).add(activity.id));
     const reactedByViewer = !activity.reactedByViewer;
     setActivities((current) => current.map((item) => item.id === activity.id
       ? { ...item, reactedByViewer, reactionCount: Math.max(0, item.reactionCount + (reactedByViewer ? 1 : -1)) }
@@ -147,8 +153,21 @@ export function ClubFeed() {
         ? { ...item, reactedByViewer: result.reacted, reactionCount: result.reactionCount }
         : item));
     } catch (cause) {
-      setActivities((current) => current.map((item) => item.id === activity.id ? activity : item));
+      setActivities((current) => current.map((item) => item.id === activity.id
+        ? {
+            ...item,
+            reactedByViewer: activity.reactedByViewer,
+            reactionCount: Math.max(0, item.reactionCount + (reactedByViewer ? -1 : 1)),
+          }
+        : item));
       setError(cause instanceof Error ? cause.message : "No se pudo actualizar la reacción.");
+    } finally {
+      pendingReactionIds.current.delete(activity.id);
+      setPendingReactions((current) => {
+        const next = new Set(current);
+        next.delete(activity.id);
+        return next;
+      });
     }
   };
 
@@ -240,9 +259,9 @@ export function ClubFeed() {
       <p className="mt-2 text-right text-[10px] text-white/25">{status.length}/280</p>
     </div>
 
-    {error && <p role="alert" className="mt-4 rounded-xl border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
+    {error && <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-200"><span>{error}</span><button type="button" onClick={() => void load(nextCursor)} className="rounded-lg border border-red-200/20 px-3 py-1.5 text-xs font-bold hover:bg-red-200/10">Reintentar</button></div>}
     {loading ? <div className="mt-5 grid place-items-center rounded-[24px] border border-white/[.08] bg-[#10110e] py-12 text-sm text-white/45"><LoaderCircle size={20} className="mb-3 animate-spin text-[#b7ff00]"/>Cargando actividad…</div> : null}
-    {!loading && !activities.length ? <div className="mt-5 rounded-[24px] border border-dashed border-white/15 bg-white/[.02] p-7 text-center"><div className="mx-auto grid h-11 w-11 place-items-center rounded-xl bg-[#b7ff00]/10 text-[#b7ff00]"><Dumbbell size={22}/></div><h3 className="mt-4 font-semibold">Tu Club está listo para arrancar.</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-white/40">Agregá amigos, compartí una rutina o publicá un update. Tus próximos entrenamientos aparecerán acá automáticamente.</p><Link href="/dashboard/community/library" className="mt-5 inline-flex rounded-xl border border-[#b7ff00]/30 px-4 py-2.5 text-xs font-bold text-[#b7ff00]">Explorar rutinas públicas</Link></div> : null}
+    {!loading && !error && !activities.length ? <div className="mt-5 rounded-[24px] border border-dashed border-white/15 bg-white/[.02] p-7 text-center"><div className="mx-auto grid h-11 w-11 place-items-center rounded-xl bg-[#b7ff00]/10 text-[#b7ff00]"><Dumbbell size={22}/></div><h3 className="mt-4 font-semibold">Tu Club está listo para arrancar.</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-white/40">Agregá amigos, compartí una rutina o publicá un update. Tus próximos entrenamientos aparecerán acá automáticamente.</p><Link href="/dashboard/community/library" className="mt-5 inline-flex rounded-xl border border-[#b7ff00]/30 px-4 py-2.5 text-xs font-bold text-[#b7ff00]">Explorar rutinas públicas</Link></div> : null}
     <div className="mt-5 space-y-4">{activities.map((activity) => <article key={activity.id} className="overflow-hidden rounded-[24px] border border-white/[.08] bg-[#10110e]">
       <div className="p-5">
         <div className="flex items-start gap-3"><UserAvatar src={activity.actor.avatarUrl} name={activity.actor.name} nickname={activity.actor.nickname} size="md"/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{activity.actor.name}</p><p className="mt-0.5 text-xs text-white/40">{activity.actor.nickname ? `@${activity.actor.nickname} · ` : ""}{relativeTime(activity.createdAt)}</p></div></div>
@@ -251,7 +270,10 @@ export function ClubFeed() {
         {activity.routine ? <RoutineCard routine={activity.routine} /> : null}
         {activity.status ? <p className="mt-4 whitespace-pre-wrap text-[15px] leading-7 text-white/80">{activity.status.content}</p> : null}
         <div className="mt-5 flex items-center gap-1 border-t border-white/[.07] pt-3">
-          <button type="button" aria-label={activity.reactedByViewer ? "Quitar reacción" : "Reaccionar"} aria-pressed={activity.reactedByViewer} onClick={() => void react(activity)} className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-xs font-bold transition ${activity.reactedByViewer ? "bg-[#b7ff00]/12 text-[#b7ff00]" : "text-white/45 hover:bg-white/[.05] hover:text-white"}`}><Heart size={16} fill={activity.reactedByViewer ? "currentColor" : "none"}/>{activity.reactionCount || ""}<span className="sr-only">reacciones</span></button>
+          <button type="button" aria-label={pendingReactions.has(activity.id) ? "Guardando reacción" : activity.reactedByViewer ? "Quitar reacción" : "Reaccionar"} aria-pressed={activity.reactedByViewer} aria-busy={pendingReactions.has(activity.id)} disabled={pendingReactions.has(activity.id)} onClick={() => void react(activity)} className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-xs font-bold transition disabled:cursor-wait disabled:opacity-70 ${activity.reactedByViewer ? "bg-[#b7ff00]/12 text-[#b7ff00]" : "text-white/45 hover:bg-white/[.05] hover:text-white"}`}>
+            {pendingReactions.has(activity.id) ? <LoaderCircle size={16} className="animate-spin" /> : <Heart size={16} fill={activity.reactedByViewer ? "currentColor" : "none"} />}
+            {activity.reactionCount || ""}<span className="sr-only">reacciones</span>
+          </button>
           <button type="button" aria-label="Ver comentarios" aria-expanded={openComments === activity.id} onClick={() => void toggleComments(activity.id)} className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-xs font-bold text-white/45 hover:bg-white/[.05] hover:text-white"><MessageCircle size={16}/>{activity.commentCount || ""}<span className="sr-only">comentarios</span></button>
         </div>
         {openComments === activity.id ? <Comments activityId={activity.id} comments={comments[activity.id] || []} loading={Boolean(commentLoading[activity.id])} value={commentInput[activity.id] || ""} submitting={submittingComment === activity.id} onChange={(value) => setCommentInput((current) => ({ ...current, [activity.id]: value }))} onSubmit={postComment} onDelete={removeComment} /> : null}
@@ -262,7 +284,7 @@ export function ClubFeed() {
 }
 
 function WorkoutCard({ workout }: { workout: NonNullable<Activity["workout"]> }) {
-  return <div className="mt-4 rounded-2xl border border-[#b7ff00]/15 bg-[#b7ff00]/[.045] p-4"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold tracking-[.16em] text-[#b7ff00]/75">ENTRENAMIENTO COMPLETADO</p><h3 className="mt-1 text-lg font-semibold">{workout.routineName}</h3></div><Dumbbell size={20} className="text-[#b7ff00]"/></div><div className="mt-5 grid grid-cols-3 gap-2"><Metric label="VOLUMEN" value={`${formatVolume(workout.volume)} kg`}/><Metric label="DURACIÓN" value={formatDuration(workout.durationSeconds)}/><Metric label="SERIES" value={String(workout.setCount)}/></div>{workout.highlightExercise ? <p className="mt-4 flex items-center gap-2 text-xs text-white/55"><Trophy size={14} className="text-[#b7ff00]"/>Ejercicio destacado: <span className="font-semibold text-white/80">{workout.highlightExercise}</span></p> : null}</div>;
+  return <div className="mt-4 rounded-2xl border border-[#b7ff00]/15 bg-[#b7ff00]/[.045] p-4"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold tracking-[.16em] text-[#b7ff00]/75">ENTRENAMIENTO COMPLETADO</p><h3 className="mt-1 text-lg font-semibold">{workout.routineName}</h3></div><Dumbbell size={20} className="text-[#b7ff00]"/></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><Metric label="VOLUMEN" value={workout.volume > 0 ? `${formatVolume(workout.volume)} kg` : "Sin dato"}/><Metric label="DURACIÓN" value={formatDuration(workout.durationSeconds)}/><Metric label="EJERCICIOS" value={String(workout.exerciseCount)}/><Metric label="SERIES" value={String(workout.setCount)}/></div>{workout.highlightExercise ? <p className="mt-4 flex items-center gap-2 text-xs text-white/55"><Trophy size={14} className="text-[#b7ff00]"/>Ejercicio destacado: <span className="font-semibold text-white/80">{workout.highlightExercise}</span></p> : null}</div>;
 }
 
 function RoutineCard({ routine }: { routine: NonNullable<Activity["routine"]> }) {

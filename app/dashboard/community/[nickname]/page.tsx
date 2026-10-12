@@ -20,7 +20,7 @@ type ProfileMessage = { id: string; content: string; createdAt: string; canDelet
 type Profile = { isOwnProfile: boolean; user: { name: string; nickname: string; avatarUrl: string | null; bio: string | null; joinedAt: string }; stats: { workouts: number; volume: number; records: number }; badges: UserBadge[]; records: Array<{ date: string; exercise: string; estimatedOneRepMax: number; weight: number; reps: number }>; routines: Routine[]; activity: Activity[]; canPostMessage: boolean; messages: ProfileMessage[] };
 
 function formatNumber(value: number) { return value.toLocaleString("es-AR", { maximumFractionDigits: 0 }); }
-function duration(seconds: number) { const minutes = Math.max(0, Math.round(seconds / 60)); return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")} m` : `${minutes} min`; }
+function duration(seconds: number) { if (seconds <= 0) return "Sin dato"; const minutes = Math.round(seconds / 60); return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")} m` : `${minutes} min`; }
 function date(value: string) { return new Date(value).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" }); }
 
 export default function CommunityProfilePage() {
@@ -44,6 +44,12 @@ export default function CommunityProfilePage() {
   }, [nickname]);
 
   const load = async () => setProfile(await requestProfile());
+  const retryProfile = () => {
+    setError("");
+    void requestProfile()
+      .then(setProfile)
+      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "No pudimos abrir este perfil."));
+  };
 
   useEffect(() => {
     let active = true;
@@ -127,7 +133,7 @@ export default function CommunityProfilePage() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "No se pudo eliminar la publicación."); }
   };
 
-  if (!profile) return <main className="min-h-dvh bg-[#090a08] px-4 pb-36 pt-28 text-white"><div className="mx-auto max-w-4xl text-sm text-white/45">{error || "Cargando perfil…"}</div></main>;
+  if (!profile) return <main className="min-h-dvh bg-[#090a08] px-4 pb-36 pt-28 text-white"><div className="mx-auto max-w-4xl text-sm text-white/45">{error ? <div role="alert" className="flex flex-wrap items-center gap-3">{error}<button type="button" onClick={retryProfile} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold text-white/70 hover:bg-white/[.05]">Reintentar</button></div> : <p role="status">Cargando perfil…</p>}</div></main>;
 
   return <main className="min-h-dvh bg-[#090a08] px-4 pb-36 pt-28 text-white sm:px-8"><div className="mx-auto max-w-4xl"><Link href="/dashboard/community" className="inline-flex items-center gap-2 text-xs text-white/45 hover:text-white"><ArrowLeft size={15} /> Comunidad</Link>
     <header className="mt-7 rounded-[30px] border border-[#b7ff00]/15 bg-[radial-gradient(circle_at_top_right,rgba(183,255,0,.11),transparent_44%),#10110e] p-5 sm:p-7"><div className="flex flex-wrap items-start justify-between gap-5"><div className="flex min-w-0 items-center gap-4"><UserAvatar src={profile.user.avatarUrl} name={profile.user.name} nickname={profile.user.nickname} size="lg"/><div className="min-w-0"><p className="text-[10px] font-bold tracking-[.2em] text-[#b7ff00]/70">PERFIL TORO</p><h1 className="mt-1 truncate text-3xl font-semibold tracking-[-.05em] sm:text-4xl">{profile.user.name}</h1><p className="mt-1 text-sm text-white/45">@{profile.user.nickname}</p></div></div><UserBadgeStrip badges={profile.badges} size="md"/></div>{profile.user.bio && <p className="mt-5 max-w-2xl text-sm leading-6 text-white/60">{profile.user.bio}</p>}<p className="mt-5 text-[11px] text-white/30">En TORO desde {new Date(profile.user.joinedAt).toLocaleDateString("es-AR", { month: "long", year: "numeric" })}</p><div className="mt-6 grid grid-cols-3 gap-2 border-t border-white/[.08] pt-5"><Metric value={String(profile.stats.workouts)} label="Entrenamientos"/><Metric value={`${formatNumber(profile.stats.volume)} kg`} label="Volumen"/><Metric value={String(profile.stats.records)} label="Récords"/></div></header>

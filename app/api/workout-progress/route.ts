@@ -78,15 +78,21 @@ export async function GET(request: Request) {
   const current = buildProgressAnalytics(
     serialize(sessions),
     targetSessionsPerWeek,
+    { periodStart: start },
   );
   const previous = buildProgressAnalytics(
     serialize(previousSessions),
     targetSessionsPerWeek,
+    { periodStart: previousStart },
   );
   return Response.json(
     {
       ...current,
-      comparison: compareSummary(current.summary, previous.summary),
+      comparison: {
+        ...compareSummary(current.summary, previous.summary),
+          hasPreviousSessions: previous.summary.sessions > 0,
+          hasPreviousCompletedSets: previous.summary.completedSets > 0,
+        },
       bodyWeight: latestWeight?.weight ?? null,
     },
     { headers: { "Cache-Control": "no-store" } },

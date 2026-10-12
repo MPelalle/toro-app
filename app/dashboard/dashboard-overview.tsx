@@ -251,7 +251,7 @@ function TodayPlan({
   const nextHabit = habits.items.find((habit) => !habit.completed);
   const trackedActions = (diet?.meals.length || 0) + habits.active + (training.todayScheduled ? 1 : 0);
   const completedActions = mealsDone + habits.completed + (training.todayScheduled && trainingCompleted ? 1 : 0);
-  const completionRate = trackedActions ? Math.round((completedActions / trackedActions) * 100) : 0;
+  const completionRate = trackedActions ? Math.min(100, Math.round((completedActions / trackedActions) * 100)) : 0;
 
   return (
     <section className="mt-6 overflow-hidden rounded-[30px] border border-[#b7ff00]/18 bg-[#10110e]/95 shadow-[0_24px_80px_rgba(0,0,0,.2)]">
@@ -267,6 +267,19 @@ function TodayPlan({
               <p className="text-[10px] font-bold tracking-[.14em] text-white/35">SEGUIMIENTO</p>
               <p className="mt-1 text-xl font-semibold text-[#b7ff00]">{completionRate}%</p>
               <p className="text-[11px] text-white/38">{completedActions}/{trackedActions} acciones</p>
+              <div
+                className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[.08]"
+                role="progressbar"
+                aria-label="Acciones de hoy completadas"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={completionRate}
+              >
+                <div
+                  className="h-full rounded-full bg-[#b7ff00] transition-[width] duration-300 motion-reduce:transition-none"
+                  style={{ width: `${completionRate}%` }}
+                />
+              </div>
             </div>
           )}
         </div>
